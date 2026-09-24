@@ -1,0 +1,46 @@
+/* ================================
+   ESTILO DEL INFORME
+   SOC Analyst Bootcamp
+   ================================ */
+
+body {
+    font-family: Arial, sans-serif;
+    line-height: 1.6;
+}
+
+/* Imágenes de evidencias */
+img {
+    display: block;
+    width: 520px;
+    max-width: 90%;
+    height: auto;
+    margin: 18px auto;
+    border-radius: 10px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.18);
+}
+
+/* Imágenes pequeñas */
+img[alt="Authenticator"] {
+    width: 220px;
+}
+
+/* Títulos */
+h1, h2, h3 {
+    color: #1f3a5f;
+}
+
+/* Tablas */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+}
+
+th, td {
+    border: 1px solid #ccc;
+    padding: 8px;
+}
+
+th {
+    background-color: #eaf1f8;
+}
