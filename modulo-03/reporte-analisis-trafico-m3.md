@@ -3,7 +3,26 @@
 **Entregable 2 del portafolio** — Reporte de Análisis de Tráfico
 **Escenario:** Ferretería El Martillo (pyme de 30 empleados, Lima)
 
+
+## Resumen ejecutivo (para CISO / no técnico)
+
+En el análisis de tráfico de red de Ferretería El Martillo, se identificaron **5 categorías de amenazas activas** contra la infraestructura actual: DDoS (SYN flood), Escaneo de puertos, Fuerza bruta SSH, DNS Anómalo (Tunelización) y Balizamiento (Beaconing) de Comando y Control (C2).
+
+**Impacto actual estimado:** **Alto**. La presencia de balizamiento C2 activo y ráfagas concurrentes expone a la empresa a una exfiltración inminente de datos financieros y al despliegue de ransomware que detendría la operación comercial.
+
+**Causa raíz:** La arquitectura actual es una **red plana** sin segmentación, lo que permite que un compromiso en cualquier host de la ferretería se propague lateralmente al resto de la empresa debido a la falta de fronteras de seguridad internas.
+
+**Recomendación principal (acción en 7 días):** Implementar la segmentación de red con Network Security Groups (NSG) creando subredes públicas (DMZ) y privadas para aislar los servidores críticos y denegar accesos no autorizados.
+
+**Inversión requerida (priorizada):**
+- **Corto plazo (7 días):** Bajo (Costo lógico absorbido por la configuración de red y despliegue del NSG `nsg-dmz` en Azure).
+- **Medio plazo (30 días):** Medio (Habilitación de Azure Firewall Premium con IDPS para inspección profunda de Capa 7).
+- **Largo plazo (90 días):** Alto (Implementación y centralización de registros mediante el SIEM Azure Sentinel para alertas del SOC).
+
+**Las secciones siguientes detallan el análisis técnico, la arquitectura propuesta, y el plan de implementación.**
+
 ---
+
 ## Sección 1 — Diseño de arquitectura segmentada
 
 ### 1.1 Zonas de confianza identificadas
@@ -349,6 +368,8 @@ Como complemento del análisis, se audita el Stream ID 6 seleccionado en la tele
 #### 📷 Evidencias de Análisis Forense en Wireshark (Métricas de Conversación TCP)
 ![Métricas de Conversaciones TCP en Wireshark](evidencias/logs-analysis-cli.png)
 
+
+
 ### 3.3 Artefactos extraídos y Validación con VirusTotal
 
 Utilizando la funcionalidad oficial de `File ➔ Export Objects ➔ HTTP`, se aislaron los tres archivos binarios transferidos durante el incidente. Para garantizar la integridad forense del análisis, el analista procedió con el cálculo de las huellas digitales criptográficas mediante comandos CLI multiplataforma, validando la consistencia de los hashes bit por bit:
@@ -471,41 +492,239 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"MALWARE-C2 Agent Tesla Encryp
 
 ## Sección 4 — Arquitectura cloud y reporte final (Clase 12)
 
-### 4.1 Modelo de Responsabilidad Compartida (IaaS/PaaS/SaaS)
-| Modelo | Responsabilidad del proveedor | Responsabilidad del cliente |
-|--------|-------------------------------|------------------------------|
-| _____ | _____ | _____ |
+### 4.1 Modelo de Responsabilidad Compartida
 
+| Responsabilidad | IaaS (Azure VM) | PaaS (Azure App Service) | SaaS (Microsoft 365) |
+|-----------------|-----------------|--------------------------|----------------------|
+| **Datos** | Cliente | Cliente | Cliente |
+| **Aplicaciones** | Cliente | Cliente (Configuración) | Proveedor (Microsoft) |
+| **OS / Runtime** | Cliente | Proveedor (Microsoft) | Proveedor (Microsoft) |
+| **Virtualización / Hypervisor** | Proveedor (Microsoft) | Proveedor (Microsoft) | Proveedor (Microsoft) |
+| **Red física** | Proveedor (Microsoft) | Proveedor (Microsoft) | Proveedor (Microsoft) |
+| **Data centers** | Proveedor (Microsoft) | Proveedor (Microsoft) | Proveedor (Microsoft) |
 ### 4.2 NSG configurado en Azure
-Las 3 reglas (con prioridad) + captura: _____
 
-### 4.3 Aplicación de controles cloud al `.pcap` del M2
-Por cada uno de los 5 patrones del M2, qué control cloud aplica: _____
+```text
+# 1. Definir variables según el reporte final
+RG="rg-ferreteria"
+LOCATION="westus"
+VNET="vnet-ferreteria-martillo"
+NSG="nsg-dmz"
 
-### 4.4 Tabla consolidada de IOCs (≥15 filas)
-| Valor | Tipo | Origen (M2/M3) | Patrón asociado |
-|-------|------|----------------|-----------------|
-| _____ | _____ | _____ | _____ |
+# 2. Crear la VNet con el nombre oficial
+az network vnet create -g $RG -n $VNET -l $LOCATION --address-prefix 10.0.0.0/16 --subnet-name subnet-public --subnet-prefix 10.0.1.0/24 -o none
+az network vnet subnet create -g $RG --vnet-name $VNET -n subnet-private --address-prefix 10.0.2.0/24 -o none
 
-### 4.5 Recomendaciones priorizadas (con costo/impacto)
-| # | Recomendación | Costo (bajo/medio/alto) | Impacto | Plazo (7d/30d/90d) |
-|---|---------------|--------------------------|---------|---------------------|
-| 1 | _____ | _____ | _____ | _____ |
+# 3. Crear el NSG oficial y asociarlo
+az network nsg create -g $RG -n $NSG -o none
+az network vnet subnet update -g $RG --vnet-name $VNET -n subnet-public --network-security-group $NSG -o none
 
-### 4.6 Autoevaluación
-| Criterio | Mi estimación | Qué mejoraría |
-|----------|---------------|---------------|
-| Segmentación / arquitectura | _____ | _____ |
-| Controles de red + reglas IDS | _____ | _____ |
-| Análisis forense Wireshark | _____ | _____ |
-| Reporte final + cloud | _____ | _____ |
+# 4. Crear Regla 1 (AllowWebPublic)
+az network nsg rule create -g $RG --nsg-name $NSG -n AllowWebPublic --priority 100 --direction Inbound --access Allow --source-address-prefixes Internet --source-port-ranges '*' --destination-address-prefixes '*' --destination-port-ranges 80 443 --protocol Tcp -o none
 
-### 4.7 Controles de identidad por zona — siembra Módulo 4
-3 controles IAM por cada zona (12 en total): _____
+# 5. Crear Regla 2 (DenySSHPublic)
+az network nsg rule create -g $RG --nsg-name $NSG -n DenySSHPublic --priority 200 --direction Inbound --access Deny --source-address-prefixes Internet --source-port-ranges '*' --destination-address-prefixes '*' --destination-port-ranges 22 --protocol Tcp -o none
 
-### 4.8 Cierre del reporte — mensaje final al CISO
-En ≤5 líneas, lenguaje no técnico: _____
+```
+
+```bash
+az network vnet subnet list -g rg-ferreteria --vnet-name vnet-ferreteria-martillo --query "[].{Subnet:name, Rango:addressPrefix}" -o table
+
+```
+
+```bash
+az network nsg rule list -g rg-ferreteria --nsg-name nsg-dmz --include-default --query "[].{Prioridad:priority, Nombre:name, Origen:sourceAddressPrefix, Destino:destinationAddressPrefix, Protocolo:protocol, Puerto:destinationPortRange, Accion:access}" -o table
+
+```
+**VNet:** `vnet-ferreteria-martillo` (10.0.0.0/16)
+**Subnets creadas:** `subnet-public` (10.0.1.0/24) + `subnet-private` (10.0.2.0/24)
+
+**Reglas inbound del NSG `nsg-dmz`:**
+
+| Prioridad | Nombre | Origen | Destino | Protocolo | Puerto | Acción |
+|-----------|--------|--------|---------|-----------|--------|--------|
+| 100 | AllowWebPublic | Internet | * | TCP | 80, 443 | Allow |
+| 200 | DenySSHPublic | Internet | * | TCP | 22 | Deny |
+| 65500 | DenyAllInbound | * | * | * | * | Deny (default) |
+
+#### 📷 Evidencia Gráfica 3 — Configuración de la Red Virtual y Subredes
+
+A continuación se detalla el direccionamiento de la red virtual junto con sus respectivas zonas pública y privada:
+
+![Configuración de la Red Virtual y Subredes en Azure](evidencias/azure-vnet.png)
+
+*Nota: La captura en `evidencias/azure-vnet.png` confirma la correcta creación de `subnet-public` (10.0.1.0/24) y `subnet-private` (10.0.2.0/24) asociadas al espacio de direccionamiento principal.*
+
+#### 📷 Evidencia Gráfica 4 — Reglas de Seguridad en el NSG (nsg-dmz)
+
+A continuación se muestra el listado completo de las reglas de seguridad personalizadas y predeterminadas aplicadas al perímetro de la red:
+
+![Reglas de Seguridad en el NSG nsg-dmz](evidencias/nsg-rules.png)
+
+*Nota: La captura en `evidencias/azure-nsg-rules.png` convalida el orden de prioridades, mostrando la apertura de los puertos web (100) y el bloqueo explícito del puerto SSH (200) frente al tráfico proveniente de Internet.*
+
+### 4.3 Aplicación mental de controles cloud al `.pcap` del M2
+
+| Patrón del `.pcap` | NSG que lo habría detenido | Qué regla específica / Control Adicional |
+|---------------------|---------------------------|------------------------------------------|
+| DDoS (SYN flood)    | No es suficiente          | Requiere **Azure DDoS Protection**       |
+| Escaneo de puertos   | Altamente efectivo        | Regla default **`DenyAllInbound`** (65500)|
+| Brute force SSH     | Altamente efectivo        | Regla custom **`DenySSHPublic`** (200)   |
+| DNS sospechoso      | No es suficiente          | Requiere **Azure Firewall Premium (IDPS)**|
+| C2 beacon           | No es suficiente          | Requiere **Azure Sentinel** (SIEM)       |
 
 ---
 
-> **Nota:** el resumen ejecutivo y la portada van **al inicio** del reporte final (los redactas en C12 a partir de todo lo anterior). El apéndice técnico (capturas, comandos, salidas crudas) va al final.
+#### Justificación técnica por cada patrón (Máximo 3 líneas):
+
+* **DDoS (SYN flood)**
+  * **Análisis:** El NSG no es suficiente porque procesa el tráfico a nivel de Capa 4 y colapsaría ante las ráfagas volumétricas del `.pcap`. Se requiere **Azure DDoS Protection** para mitigar las inundaciones SYN en el perímetro de Microsoft antes de que saturen los recursos de la VNet.
+
+* **Escaneo de puertos**
+  * **Análisis:** El NSG ayuda significativamente mediante la regla predeterminada **`DenyAllInbound`**. Al descartar (*drop*) de forma automática las solicitudes de exploración TCP/UDP dirigidas a puertos no autorizados, el atacante no obtiene respuestas y se frustra su fase de reconocimiento técnico.
+
+* **Brute force SSH**
+  * **Análisis:** El NSG lo detiene por completo aplicando la regla personalizada perimetral **`DenySSHPublic`** (Origen: Internet, Destino: *, Puerto: 22, Acción: Deny). Al denegar el protocolo en la frontera, los intentos de conexión externa observados en el `.pcap` nunca alcanzan al servidor.
+
+* **DNS sospechoso**
+  * **Análisis:** El NSG no es suficiente porque la regla nativa de salida permite el tráfico UDP/53 a Internet sin inspeccionar el payload de las consultas. Se requiere **Azure Firewall Premium con IDPS** para validar la reputación del dominio consultado y bloquear tácticas de exfiltración.
+
+* **C2 beacon**
+  * **Análisis:** El NSG no es suficiente debido a su naturaleza *stateful*; al permitir la salida libre a Internet, no detecta llamadas periódicas automatizadas cifradas. Se requiere **Azure Sentinel** para correlacionar los logs de flujo (NSG Flow Logs) y alertar anomalías basadas en patrones de balizamiento.
+
+
+
+
+### 4.4 Tabla consolidada de IOCs (≥15 filas)
+
+A continuación se consolidan los Indicadores de Compromiso (IOCs) analizados durante las fases de auditoría perimetral e investigación forense digital, sirviendo de base técnica para alimentar herramientas SIEM, EDR o Firewalls de la compañía:
+
+| # | IOC | Tipo | Fuente | Confianza | Acción recomendada |
+|---|-----|------|--------|-----------|---------------------|
+| 1 | `185.220.101.47` | IP Origen (Reconocimiento / DDoS) | Sección 2.3 | Alta | Bloquear en Firewall perimetral y Azure NSG |
+| 2 | `10.0.2.50` | IP Destino (Target de Escaneo) | Sección 2.3 | Alta | Aislar interfaz lógica para auditoría interna de hosts |
+| 3 | `10.0.2.60` | IP Origen Interna (Comprometida) | Sección 3.4 | Alta | Activar protocolo de aislamiento de red (Contención IR) |
+| 4 | `198.51.100.10` | IP Destino Externa (Servidor C2) | Sección 3.4 | Alta | Bloquear en políticas perimetrales salientes (Egress Drop) |
+| 5 | `fctr-docs.top` | Dominio Malicioso (Phishing/Delivery) | Sección 3.3 | Alta | Configurar como zona de mitigación (Sinkhole) en DNS interno |
+| 6 | `zq4x.top` | Dominio Malicioso (C2 / Hosting Malware) | Sección 3.3 | Alta | Bloquear resolución en pasarela web segura y proxy reverso |
+| 7 | `Factura_0915.docm` | Nombre de Archivo (Emotet Dropper) | Sección 3.3 | Alta (63/71 VT) | Eliminar del almacenamiento y firmar en la pasarela de Email |
+| 8 | `update.exe` | Nombre de Proceso (Agent Tesla Infostealer) | Sección 3.3 | Alta (68/74 VT) | Registrar regla de denegación por nombre y hash en el EDR |
+| 9 | `cert.pem` | Certificado TLS (Canal Encubierto) | Sección 3.3 | Media (0/67 VT) | Mapear huella SHA-256 en base de Threat Intelligence interna |
+| 10 | `75429e9d206a084f1473e5f9cd3e96c16618b6b2c295bb78f5754e9ec17f0704` | Hash SHA-256 (`Factura_0915.docm`) | Sección 3.3 | Alta | Desplegar firma criptográfica en motores Antivirus locales |
+| 11 | `14649a74cf84d7747271217bb1ccb84f98fa6370ff4ad5ca1bff7744f9cf5f5f` | Hash SHA-256 (`update.exe`) | Sección 3.3 | Alta | Cargar indicador en la lista negra (*Blacklist*) del EDR central |
+| 12 | `888d85744eb2ce4307937b71c0c187c96d01113cec9aeeaaab55a48c9bbedcc6` | Hash SHA-256 (`cert.pem`) | Sección 3.3 | Media | Añadir firma en SIEM para correlación de túneles TLS anómalos |
+| 13 | `TCP / Puerto 22` | Vector Inbound Atacado (SSH Recon) | Sección 2.3 | Alta | Denegar acceso externo completo mediante regla Azure NSG |
+| 14 | `TCP / Puerto 80` | Vector Inbound Atacado (HTTP Sonda) | Sección 2.3 | Alta | Forzar redirección HTTPS e implementar WAF en Proxy Reverso |
+| 15 | `TCP / Puerto 443` | Canal Outbound Utilizado (C2 Beacon) | Sección 3.4 | Alta | Activar inspección profunda con Azure Firewall Premium (IDPS) |
+
+---
+
+### 4.5 Recomendaciones priorizadas con costo/impacto
+
+#### Prioridad 1 — Corto plazo (próximos 7 días)
+- **Acción:** Romper la red plana de la organización aislando el perímetro mediante la implementación del Network Security Group (`nsg-dmz`) en la subred pública, forzando la regla custom `DenySSHPublic` (Puerto 22) e inhabilitando todo tráfico inbound por defecto hacia la subred privada.
+- **Costo relativo:** Bajo
+- **Impacto en seguridad:** Alto; detiene de forma inmediata el 100% de los ataques externos por fuerza bruta o escaneo vertical contra interfaces administrativas directamente en la frontera cloud.
+- **Impacto en operación:** Bajo; los ingenieros de soporte legítimos mantendrán el acceso mediante el uso obligatorio de conexiones VPN seguras o bastiones de salto controlados internamente.
+- **Por qué esta es prioridad 1:** Remedia directamente el vector inicial de reconocimiento masivo y explotación de SSH automatizada identificado en los logs sin requerir costos extras de licenciamiento.
+
+#### Prioridad 2 — Medio plazo (30 días)
+- **Acción:** Desplegar un servicio perimetral de **Azure Firewall Premium** integrado con capacidades de Sistema de Prevención de Intrusiones (IDPS) y descifrado TLS/SSL en los gateways de salida de la infraestructura.
+- **Costo relativo:** Medio
+- **Impacto en seguridad:** Alto; permite la inspección profunda de paquetes (DPI) en Capa 7, logrando identificar y bloquear las consultas a dominios maliciosos (`zq4x.top`) y el balizamiento C2 cifrado.
+- **Impacto en operación:** Bajo; requiere una ventana de mantenimiento programada de 2 horas para redirigir las tablas de enrutamiento lógicas de la VNet hacia el firewall centralizado.
+- **Por qué esta es prioridad 2:** Los firewalls de Capa 4 tradicionales (como los NSG) son ciegos ante conexiones HTTPS salientes legítimas; se necesita inspección de firmas para romper los canales ocultos de Agent Tesla.
+
+#### Prioridad 3 — Largo plazo (90 días)
+- **Acción:** Habilitar el servicio de correlación analítica **Azure Sentinel** (SIEM) recolectando de forma centralizada la telemetría de los NSG Flow Logs, auditorías de Windows Server y alertas perimetrales.
+- **Costo relativo:** Alto
+- **Impacto en seguridad:** Alto; dota al equipo de respuestas (SOC) de detección proactiva basada en anomalías, mapas visuales de incidentes y correlación automática con marcos de MITRE ATT&CK.
+- **Impacto en operación:** Neutral; su integración lógica opera en segundo plano recolectando telemetría de eventos de red sin interferir con las operaciones o la velocidad de las aplicaciones.
+- **Por qué esta es prioridad 3:** Garantiza una estrategia de visibilidad, monitoreo continuo y madurez de seguridad a largo plazo, escalando de la contención táctica inmediata hacia la resiliencia operativa permanente.
+
+
+## Apéndice A — Filtros Wireshark usados
+
+1. `tcp.flags.syn == 1 && tcp.flags.ack == 0` — Aísla paquetes SYN puros entrantes para detectar y mapear ráfagas o inundaciones masivas (DDoS SYN flood).
+2. `tcp.port == 22` — Filtra de forma estricta las comunicaciones bajo el protocolo SSH para auditar patrones temporales de conexiones concurrentes erróneas (Fuerza bruta).
+3. `dns.flags.response == 0` — Separa las peticiones DNS salientes para rastrear búsquedas repetitivas de resolución hacia nombres de dominios anómalos o sospechosos (Canales C2).
+4. `http.request.method == "POST"` — Expone los envíos de información web en Capa 7, permitiendo auditar posibles exfiltraciones de datos lógicos o credenciales mediante strings de texto plano.
+5. `tls.handshake.type == 1` — Filtra los paquetes perimetrales de negociación inicial (*Client Hello*) con el fin de extraer firmas criptográficas y huellas digitales de tipo JA3.
+
+## Apéndice B — Comandos CLI usados
+
+```bash
+# Inicializar la Red Virtual perimetral principal fijando el segmento lógico de la subred pública (DMZ)
+az network vnet create -g rg-ferreteria -n vnet-ferreteria-martillo -l westus --address-prefix 10.0.0.0/16 --subnet-name subnet-public --subnet-prefix 10.0.1.0/24 -o none
+
+# Agregar el segmento de red interna aislado y protegido exclusivo para la subred privada de base de datos
+az network vnet subnet create -g rg-ferreteria --vnet-name vnet-ferreteria-martillo -n subnet-private --address-prefix 10.0.2.0/24 -o none
+
+# Crear el contenedor de políticas lógico para el Grupo de Seguridad de Red (nsg-dmz)
+az network nsg create -g rg-ferreteria -n nsg-dmz -o none
+
+# Vincular de forma obligatoria las directivas del NSG para que apliquen de cara a la subred pública
+az network vnet subnet update -g rg-ferreteria --vnet-name vnet-ferreteria-martillo -n subnet-public --network-security-group nsg-dmz -o none
+
+# Configurar la Regla 1 (Prioridad 100) para permitir conexiones HTTP/HTTPS entrantes de la red Internet
+az network nsg rule create -g rg-ferreteria --nsg-name nsg-dmz -n AllowWebPublic --priority 100 --direction Inbound --access Allow --source-address-prefixes Internet --source-port-ranges '*' --destination-address-prefixes '*' --destination-port-ranges 80 443 --protocol Tcp -o none
+
+# Forzar la Regla 2 (Prioridad 200) para denegar y descartar de forma total solicitudes externas SSH
+az network nsg rule create -g rg-ferreteria --nsg-name nsg-dmz -n DenySSHPublic --priority 200 --direction Inbound --access Deny --source-address-prefixes Internet --source-port-ranges '*' --destination-address-prefixes '*' --destination-port-ranges 22 --protocol Tcp -o none
+
+# Listar en consola el estado final del direccionamiento interno de la VNet y sus respectivas subredes
+az network vnet subnet list -g rg-ferreteria --vnet-name vnet-ferreteria-martillo --query "[].{Subnet:name, Rango:addressPrefix}" -o table
+
+# Listar en formato de tabla el catálogo de reglas activas y por defecto vigentes sobre el NSG perimetral
+az network nsg rule list -g rg-fereritria --nsg-name nsg-dmz --include-default --query "[].{Prioridad:priority, Nombre:name, Origen:sourceAddressPrefix, Destino:destinationAddressPrefix, Protocolo:protocol, Puerto:destinationPortRange, Accion:access}" -o table
+```
+
+## Apéndice C — Herramientas y fuentes
+
+* **VirusTotal:** Plataforma de inteligencia de amenazas empleada para contrastar de manera automatizada la reputación global de direcciones IP hostiles, verificar registros de dominios dinámicos y evaluar las firmas de los archivos sospechosos extraídos (`update.exe` y `Factura_0915.docm`).
+* **Wireshark:** Analizador de protocolos de red multiplataforma utilizado para descomponer el archivo `.pcap`, realizar el análisis forense de flujos TCP individuales (*streams index*) e inspeccionar la regularidad matemática de los tiempos de transmisión (*Timing Analysis*).
+* **MXToolbox:** Herramienta de diagnóstico de infraestructura DNS y auditoría perimetral de red, utilizada para desglosar encabezados sintácticos de correos electrónicos corporativos sospechosos y validar registros MX/SPF de suplantaciones.
+
+### 4.6 Autoevaluación del reporte
+
+A continuación se detalla la matriz de cumplimiento y control de calidad interno aplicada sobre el informe final antes de proceder con el proceso de empaquetado y exportación a PDF:
+
+| Criterio | Mi estimación | Qué mejoraría con 15 min más |
+|----------|---------------|------------------------------|
+| **1. Diseño de arquitectura (Sección 1)** | Excelente | Enriquecería el diagrama lógico agregando de forma explícita los flujos direccionales y protocolos de la VPN de administración que conecta con la subred privada de servidores corporativos. |
+| **2. Análisis logs + reglas IDS (Sección 2)** | Excelente | Validaría las tres sintaxis de reglas de Suricata en un entorno de laboratorio secundario activo para medir de manera exacta el consumo de recursos de CPU ante ráfagas masivas. |
+| **3. Wireshark avanzado (Sección 3)** | Excelente | Correlacionaría el volumen exacto de bytes analizado en las ráfagas periódicas con una búsqueda cruzada en bases de reputación OSINT para perfilar la infraestructura del adversario. |
+| **4. Reporte formal publicable** | Excelente | Refinaría la maquetación de los saltos de página y los estilos visuales en la tabla consolidada de indicadores de compromiso (*IOCs*) para optimizar la estética del documento de impresión. |
+| **5. Desafío Avanzado — Cloud + IAM** | Excelente | Desarrollaría una plantilla en formato JSON con políticas de acceso detalladas bajo el principio de menor privilegio (*Least Privilege*) para restringir quién puede alterar las reglas del NSG. |
+
+
+### 4.7 Controles de identidad por zona — siembra Módulo 4
+
+A continuación se propone la matriz de controles de identidad (IAM) para mitigar vectores de compromiso mediante la autenticación robusta y la restricción estricta de privilegios por cada segmento perimetral:
+
+#### Zona Pública (Wi-Fi clientes)
+- **Control 1:** Red de invitados aislada mediante **Portal Cautivo** con expiración automática de sesión de 2 horas para evitar persistencias no autorizadas.
+- **Control 2:** Autenticación basada en credenciales efímeras por SMS (*One-Time Password*) para mantener una trazabilidad básica de identidades de terceros.
+- **Control 3:** Aislamiento total de clientes en Capa 2 (*Client Isolation*) para impedir el descubrimiento mutuo de dispositivos conectados a la red inalámbrica pública.
+
+#### Zona DMZ
+- **Control 1:** Uso exclusivo de **Service Accounts (Cuentas de Servicio) dedicadas** con permisos de ejecución mínimos, separadas por completo de cuentas personales.
+- **Control 2:** Autenticación mutua TLS (**mTLS**) para validar de forma rigurosa la identidad de los servicios externos que consumen las APIs web.
+- **Control 3:** Restricción estricta del acceso administrativo SSH/HTTP mediante políticas de **Acceso Condicional** basadas en rangos de IP de gestión fijos.
+
+#### Zona Interna
+- **Control 1:** Centralización e integración de identidades corporativas de los empleados utilizando la federación de identidades mediante **Microsoft Entra ID**.
+- **Control 2:** Despliegue obligatorio de **MFA basado en ubicación y dispositivo** corporativo saludable para todos los accesos a portales empresariales.
+- **Control 3:** Aplicación estricta de políticas de Control de Acceso Basado en Roles (**RBAC**) bajo el principio fundamental de mínimo privilegio.
+
+#### Zona Crítica
+- **Control 1:** Uso obligatorio de llaves de seguridad físicas con **MFA resistente a phishing (FIDO2)** para todas las cuentas de administración.
+- **Control 2:** Despliegue de un sistema de Gestión de Accesos Privilegiados (**PAM**) para registrar de forma automática las auditorías y grabaciones de sesión de los administradores.
+- **Control 3:** Acceso remoto exclusivo a través de un **Bastion Host** protegido, requiriendo aprobación previa y con ventanas de tiempo restringidas (*Just-In-Time*).
+
+---
+
+### 4.8 Cierre del reporte — mensaje final al CISO
+
+El principal hallazgo de esta auditoría revela que la falta de segmentación interna expone a la ferretería a un riesgo inminente de parálisis operativa y robo de información crítica por propagación descontrolada de malware. La recomendación más urgente es autorizar el despliegue inmediato de las subredes en la nube y los controles de identidad por zonas aquí descritos para blindar de inmediato el perímetro perimetral corporativo. Por lo tanto, el CISO debe presentar formalmente este plan en la próxima reunión de management para obtener la aprobación del presupuesto técnico, priorizando la seguridad operativa de los almacenes comerciales frente a los inversores.
+
