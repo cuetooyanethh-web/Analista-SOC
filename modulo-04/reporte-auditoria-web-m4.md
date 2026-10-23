@@ -3,7 +3,28 @@
 **Reporte de Auditoría Web — Módulo 4** (complemento técnico del portafolio)
 **Escenario:** Ferretería El Martillo (pyme de 30 empleados, Lima)
 
-> 📌 **Cómo usar esta plantilla:** cópiala a `bootcamp-cyber102/modulo-4/` y renómbrala a `reporte-auditoria-web-m4.md`. Se construye por clase: Sección 1 en C13 (IAM), Sección 2 en C14 (vulnerabilidades/CVSS), Sección 3 en C15 (hardening) y Sección 4 en C16 (OWASP + reglas SIEM). Reemplaza cada `_____`. Capturas en `evidencias/`.
+---
+
+## Resumen ejecutivo (1 página, audiencia no técnica)
+
+En la auditoría web realizada sobre OWASP Juice Shop identificamos **5 vulnerabilidades** que afectan principalmente las áreas de Configuración de Seguridad en Infraestructura Web, Protección de Datos de Sesión y Privacidad en el Manejo de Código Fuente.
+
+**Hallazgos críticos:**
+- Ausencia de Política de Seguridad de Contenido (CSP), lo que permite la ejecución de scripts maliciosos inyectados directamente en los navegadores de los clientes.
+- Configuración de Origen Cruzado Permisiva (CORS Global con comodín `*`), lo que expone los datos de sesión y respuestas del servidor a portales externos maliciosos.
+- Exposición de comentarios e información técnica en archivos JavaScript de producción, facilitando tareas de reconocimiento y mapeo de la aplicación a posibles atacantes.
+
+**Riesgo principal:** Medio — Aunque no se registraron fallos de explotación crítica e inmediata en este ciclo, las brechas de configuración exponen la navegación de los clientes y debilitan de forma sistémica el perímetro digital del negocio.
+
+**Recomendación principal (acción inmediata):** Realizar un hardening del servidor web Nginx para inyectar cabeceras de seguridad rígidas que restrinjan la ejecución de código externo y el acceso cruzado no autorizado.
+
+**Inversión recomendada (priorizada):**
+- Corto plazo (7 días): Configurar manualmente en Nginx las directivas de control CORS restrictivo y activar una política base de Content-Security-Policy.
+- Medio plazo (30 días): Desplegar un Web Application Firewall (WAF) perimetral con reglas OWASP Core Rule Set y aplicar políticas estrictas de Rate Limiting.
+- Largo plazo (90 días): Automatizar procesos de minificación y limpieza de código en el pipeline de desarrollo (CI/CD) junto con auditorías DAST periódicas.
+
+Las secciones siguientes detallan la metodología, los hallazgos técnicos, y el plan de implementación.
+
 
 ---
 ## Sección 1 — Configuración IAM en Azure Entra ID
@@ -780,34 +801,208 @@ De los 5 hallazgos críticos analizados en el escaneo forense de red, la mayorí
 
 ## Sección 4 — Auditoría OWASP Top 10 (perspectiva defensiva) (Clase 16)
 
-### 4.1 Metodología (scope, ambiente, limitaciones)
-_____
 
-### 4.2 Resumen de hallazgos automáticos (ZAP)
-Totales por severidad + reporte HTML en `evidencias/zap-report.html`: _____
+### Parte 1: Setup Juice Shop + ZAP
 
-### 4.3 Tabla de hallazgos — perspectiva defensiva SOC L1
-| Hallazgo | Categoría OWASP 2021 (A01–A10) | Cómo se **detecta** (SIEM) | Cómo se **mitiga** |
-|----------|-------------------------------|----------------------------|---------------------|
-| _____ | _____ | _____ | _____ |
+#### Levantar Juice Shop en Docker
+Para realizar una auditoría web en un entorno 100% controlado y ético, se desplegó la aplicación deliberadamente vulnerable **OWASP Juice Shop** de forma local en la máquina virtual de Kali Linux utilizando contenedores Docker.
 
-### 4.4 Autoevaluación
-| Criterio | Mi estimación | Qué mejoraría |
-|----------|---------------|---------------|
-| IAM / RBAC | _____ | _____ |
-| Vulnerabilidades / CVSS | _____ | _____ |
-| Hardening CIS | _____ | _____ |
-| OWASP defensivo | _____ | _____ |
+Los comandos ejecutados en la terminal para el despliegue y validación del servicio fueron los siguientes:
 
-### 4.5 Reglas SIEM para detectar los 8 hallazgos
-Estructura: `alert source pattern threshold group_by action msg reference`. Incluye threshold numérico, referencia a la categoría OWASP y falsos positivos esperables. Si una no aplica, documenta por qué.
-```
-_____
+```bash
+# 1. Descargar la imagen oficial desde Docker Hub
+sudo docker pull bkimminich/juice-shop
+
+# 2. Ejecutar el contenedor en segundo plano mapeando el puerto local 3000
+sudo docker run --rm -d -p 3000:3000 --name juice-shop bkimminich/juice-shop
+
+# 3. Verificar el estado del contenedor activo
+sudo docker ps
+
+# 4. Comprobar que el servidor web local responde peticiones HTTP de forma correcta
+curl http://localhost:3000
 ```
 
-### 4.6 Cierre integral del Módulo 4 (defense-in-depth)
-Cómo IAM + Vulns + Hardening + OWASP se combinan en capas (≤6 líneas, lenguaje ejecutivo): _____
+* **Evidencia requerida:** Almacenar la captura de la terminal con el contenedor en ejecución y la respuesta del código HTML en la ruta: `evidencias/juice-shop-running.png`.
+
+![ubuntu](evidencias/juice-shop-running.png) 
+---
+
+####  Configurar OWASP ZAP
+Una vez verificado el correcto funcionamiento de la aplicación web local, se procedió a inicializar y configurar el escáner automatizado **OWASP ZAP (Zaproxy)** mediante el siguiente flujo operativo:
+
+1. **Inicialización:** Se abrió la herramienta desde la consola de comandos de Kali Linux:
+   ```bash
+   zaproxy &
+   ```
+2. **Persistencia de Sesión:** En el cuadro de diálogo emergente inicial, se seleccionó la opción *"Yes, I want to persist this session with name based on the current timestamp"* para almacenar de forma persistente la base de datos de auditoría.
+3. **Gestión de Complementos:** Se procedió a cerrar la ventana del gestor de complementos (*Manage Add-ons*) para liberar el acceso a la interfaz gráfica principal.
+4. **Lanzamiento del Escaneo:** Desde la pestaña *Quick Start*, se seleccionó el módulo **Automated Scan**, configurando la dirección local `http://localhost:3000` como objetivo (*URL to attack*) y se ejecutó la acción **Attack** para dar inicio al rastreo por Spider y posterior análisis dinámico de vulnerabilidades (Active Scan).
+
+
+### 4.1 Metodología
+
+**Objetivo:** auditar OWASP Juice Shop (aplicación deliberadamente vulnerable) identificando hallazgos que mapeen a OWASP Top 10 (2021) desde **perspectiva defensiva SOC L1**.
+
+**Ambiente:**
+- VM Kali Linux (red NAT aislada `LabInterna`)
+- OWASP Juice Shop en Docker (`bkimminich/juice-shop`, puerto 3000)
+- OWASP ZAP versión 2.17.0
+
+**Alcance:**
+- Solo `http://localhost:3000` (entorno controlado en mi propia máquina)
+- NO escaneo de sistemas externos ni de terceros
+
+**Limitaciones del scanner automatizado:**
+- No detecta vulnerabilidades de lógica de negocio (requieren testing manual)
+- Falsos positivos esperables — requieren validación
+- No identifica vulnerabilidades que requieran autenticación previa específica
+
+### Parte 2: Escaneo automatizado + captura de hallazgos
+
+#### 2.1 Lanzar Automated Scan en ZAP
+Con el entorno de pruebas completamente aislado y operativo, se procedió a ejecutar el escaneo dinámico automatizado sobre la aplicación objetivo para identificar debilidades estructurales y configuraciones de seguridad incorrectas.
+
+El flujo de ejecución dentro de la interfaz de OWASP ZAP se detalla a continuación:
+
+1. **Configuración del Objetivo:** En el panel central de la herramienta, se seleccionó la pestaña **Quick Start** y se hizo clic en el módulo **Automated Scan**.
+2. **Definición del Alcance:** En el campo *URL to attack*, se ingresó la dirección del contenedor local: `http://localhost:3000`.
+3. **Motores de Descubrimiento:** Se mantuvieron activadas de forma simultánea las opciones **Use traditional spider** (para el rastreo indexado de rutas estándar) y **Use ajax spider** (para descubrir componentes dinámicos e interactivos basados en JavaScript).
+4. **Ejecución:** Se hizo clic en el botón **Attack** para iniciar el procesamiento automatizado, permitiendo que la herramienta trabajara de forma pasiva e independiente durante aproximadamente 5 a 10 minutos para evitar interferencias en la telemetría del escáner.
 
 ---
 
-> **Nota:** el resumen ejecutivo (1 página, no técnico) va al inicio del reporte final; conviértelo a PDF para el portafolio.
+#### Evidencias del Proceso de Auditoría
+
+*   **Fase de Descubrimiento (Spider):** Captura de pantalla que documenta el progreso del rastreo indexado y la cantidad de nodos agregados al árbol de sitios de ZAP.
+    *   *Ruta del archivo:* `evidencias/zap-spider-progress.png`
+    *   ![ubuntu](evidencias/zap-spider-progress.png) 
+
+*   **Fase de Ataque Dinámico (Active Scan):** Captura de pantalla que evidencia la ejecución de los vectores de ataque simulados en tiempo real contra los endpoints descubiertos.
+    *   *Ruta del archivo:* `evidencias/zap-active-scan.png`
+*   ![zap](evidencias/zap-active-scan.jpeg) 
+
+#### 2.2 Generar reporte HTML de ZAP
+
+Una vez finalizado el análisis dinámico de vulnerabilidades (Active Scan), se exportaron los resultados en un informe técnico estructurado en formato HTML para documentar el estado de seguridad de la aplicación.
+
+El procedimiento realizado dentro de la interfaz gráfica de OWASP ZAP consistió en las siguientes fases:
+
+1. **Acceso al Generador:** En la barra de herramientas superior, se ingresó al menú **Report** y se seleccionó la opción **Generate Report**.
+2. **Configuración de Parámetros:** En la ventana flotante de personalización, se completaron los metadatos obligatorios exigidos para el entregable:
+   * **Report Title:** `Auditoría Web - Ferretería El Martillo`
+   * **Description:** `Auditoría OWASP Top 10 sobre app de prueba`
+   * **Sites:** Configuración predeterminada seleccionando el endpoint local objetivo (`http://localhost:3000`).
+3. **Gestión de Filtros de Seguridad:** Ante la advertencia de exclusión de datos por filtros del entorno, se habilitó de manera explícita la casilla de verificación **Generate If No Alerts** para forzar la compilación del documento con los hallazgos activos.
+4. **Exportación y Acceso:** Se hizo clic en el botón **Generate Report** para consolidar el archivo en el sistema de archivos del usuario.
+
+*   **Evidencia del Reporte Generado:** Archivo HTML definitivo exportado y verificado desde el Escritorio del sistema mediante el navegador web Firefox.
+    *   *Ruta del archivo guardado:* `evidencias/zap-report.html`
+    *  ![zap](evidencias/zap-report-html.png) 
+
+
+### 4.2 Resumen de hallazgos automáticos (ZAP)
+
+**Total de alertas generadas por ZAP:** 5
+
+**Distribución por severidad:**
+
+| Severidad | Cantidad |
+|-----------|----------|
+| High | 0 |
+| Medium | 2 |
+| Low | 0 |
+| Informational | 3 |
+
+**Captura del reporte HTML:** `evidencias/zap-report-summary.png`
+ ![zap](evidencias/zap-report-summary.png) 
+
+
+### 4.3 Tabla de hallazgos — perspectiva defensiva SOC L1 (Actualizada con Lógica SIEM)
+
+| # | Nombre del hallazgo (ZAP) | Categoría OWASP Top 10 | CVE asociado | CVSS Base | Severidad ZAP | URL afectada | Detección desde SIEM | Mitigación (control M3+M4) |
+|---|----------------------------------|------------------------|--------------------------|-----------|----------------|--------------|---------------------|----------------------------|
+| 1 | Content Security Policy (CSP) Header Not Set | A05:2021 Security Misconfiguration | N/A | 5.3 | Medium | `http://localhost:3000` | **No detectable desde SIEM** — Requiere auditoría continua de configuración de cabeceras mediante herramientas DAST de forma proactiva. | **M4 (Hardening de Servidor):** Configurar directivas restrictivas en el bloque HTTP de Nginx (`add_header Content-Security-Policy`). **M3 (WAF):** Activar reglas de inyección de headers en proxy inverso. |
+| 2 | Cross-Domain Misconfiguration | A05:2021 Security Misconfiguration | N/A | 5.3 | Medium | `http://localhost:3000` | **No detectable desde SIEM** — Es una debilidad estática de configuración. Se identifica mediante escaneo continuo de políticas CORS. | **M4 (Hardening de Aplicación):** Modificar el código fuente de Node.js/Express para definir explícitamente los dominios permitidos en la lista blanca de CORS, eliminando el comodín `*`. |
+| 3 | Information Disclosure - Suspicious Comments (Archivo JS) | A01:2021 Broken Access Control | N/A | 3.3 | Informational | `http://localhost:3000/chunk-Cv2YgWUq.js` | Logs del servidor web registrarían la petición HTTP GET exitosa (200), pero el SIEM **no detecta el contenido del comentario interno** sin inspección profunda de paquetes (DPI). | **M4 (Hardening en Ciclo de Desarrollo):** Configurar el empaquetador (Webpack/Vite) para ejecutar minificación automatizada (*Uglify/Terser*) antes de compilar a producción, eliminando cadenas de texto `TODO`. |
+| 4 | Information Disclosure - Suspicious Comments (Archivo Principal) | A01:2021 Broken Access Control | N/A | 3.3 | Informational | `http://localhost:3000/main.js` | El SIEM **no genera alertas en tiempo real** por transferencia de comentarios estáticos; requiere auditoría previa en el pipeline de desarrollo (CI/CD). | **M4 (Hardening en Ciclo de Desarrollo):** Implementar herramientas de análisis estático de código (SAST) en los repositorios de código para bloquear despliegues que contengan credenciales o comentarios sensibles. |
+| 5 | Modern Web Application (Endpoint Principal) | A05:2021 Security Misconfiguration | N/A | 0.0 | Informational | `http://localhost:3000` | **No detectable desde SIEM** — La exposición de firmas tecnológicas (`X-Powered-By`) requiere análisis DAST externo y remediación proactiva en el servidor. | **M4 (Hardening de Servidor):** Modificar parámetros globales para suprimir firmas del sistema operativo (`server_tokens off` en Nginx) y deshabilitar cabeceras explícitas en el backend (`app.disable('x-powered-by')`). |
+| 6 | Modern Web Application (Directorio de Rutas) | A05:2021 Security Misconfiguration | N/A | 0.0 | Informational | `http://localhost:3000/juice-shop/build/routes/` | Logs de Nginx reportarían códigos de estado `200` o `403` en accesos a rutas. Regla SIEM: Alerta si `web.request.url` contiene `/build/` y el volumen supera 5 peticiones. | **M4 (Hardening de Servidor):** Deshabilitar de forma permanente la directiva de listado de directorios (*Directory Listing*) en las rutas estáticas del servidor web. **M3 (IPS):** Bloquear el escaneo de directorios ocultos. |
+| 7 | Modern Web Application (Mapa de Sitio) | A05:2021 Security Misconfiguration | N/A | 0.0 | Informational | `http://localhost:3000/sitemap.xml` | Logs del servidor web registrarían la lectura de la ruta. Regla SIEM: Monitorear accesos masivos a `/sitemap.xml` provenientes de IPs externas sospechosas. | **M3 (Firewall Perimetral / WAF):** Configurar políticas de control de acceso geográfico e implementar reglas CAPTCHA automatizadas para mitigar el mapeo agresivo de recursos por parte de bots maliciosos. |
+| 8 | User Agent Fuzzer (Componentes Estáticos) | A05:2021 Security Misconfiguration | N/A | 0.0 | Informational | `http://localhost:3000/assets` | **Detección desde SIEM alta:** Logs del servidor web muestran ráfagas inusuales de peticiones en segundos. Regla SIEM: Alerta si `http.request.user_agent` coincide con firmas de herramientas de fuzzing conocidas. | **M3 (IDS/IPS de Aplicación y WAF):** Implementar un Web Application Firewall con las reglas OWASP Core Rule Set (CRS) activas para bloquear agentes sintéticos. Configurar reglas de *Rate Limiting* (límite de peticiones). |
+
+
+### 4.4 Autoevaluación
+
+| Criterio | Mi estimación | Qué mejoraría con 30 min más |
+|----------|---------------|------------------------------|
+| 1. IAM (Sección 1) | Excelente | Automatizaría el aprovisionamiento de los grupos y asignaciones de roles utilizando scripts de Azure CLI o Terraform para evitar errores manuales. |
+| 2. Vulnerabilidades CVSS (Sección 2) | Excelente | Añadiría vectores de ataque más específicos para simular escenarios reales de explotación controlada sobre las API expuestas. |
+| 3. Hardening (Sección 3) | Bueno | Crearía una plantilla base de configuración de Nginx (Nginx Hardening Template) lista para desplegar en entornos de contenedores Docker. |
+| 4. Auditoría OWASP + perspectiva defensiva (Sección 4) | Excelente | Integraría un análisis manual complementario sobre el flujo lógico del carrito de compras para identificar vulnerabilidades de lógica de negocio que el escáner no detecta. |
+| 5. Desafío Avanzado — Reglas SIEM | Bueno | Escribiría las reglas nativas en formato XML formal listas para ser importadas y validadas directamente en el archivo `local_rules.xml` de un agente Wazuh. |
+
+
+## Parte 5: Desafío Avanzado — Reglas SIEM pseudo-formales (siembra M5)
+
+### 4.5 Reglas SIEM para detectar los hallazgos del reporte
+
+#### Regla SIEM #1 — Content Security Policy (CSP) Header Not Set
+* **Sin detección SIEM en tiempo real — requiere DAST scanner periódico.**
+* **Risk:** Medium | **Confidence:** High | **CWE ID:** 693
+* **Falsos positivos esperables:** No aplica.
+* **Tuning recomendado si FPR alta:** La ausencia de cabeceras de seguridad es una debilidad estática de la configuración del servidor web. Un SIEM basado en logs transaccionales no detecta la omisión de un campo HTTP en las respuestas salientes de forma nativa. Su control óptimo exige integrar el CLI de OWASP ZAP en el pipeline de CI/CD para auditorías automáticas en pre-producción.
+
+#### Regla SIEM #2 — Cross-Domain Misconfiguration
+* **Sin detección SIEM en tiempo real — requiere DAST scanner periódico.**
+* **Risk:** Medium | **Confidence:** Medium | **CWE ID:** 264
+* **Falsos positivos esperables:** No aplica.
+* **Tuning recomendado si FPR alta:** Al igual que el CSP, la configuración permisiva de accesos cruzados (CORS/Cross-Domain) reside en directivas estructurales del servidor. Su control y mitigación madura demanda auditorías periódicas de los archivos de configuración web (`nginx.conf` / `httpd.conf`) o análisis DAST en lugar de firmas correlacionales de eventos en producción.
+
+#### Regla SIEM #3 — Information Disclosure - Suspicious Comments (Detección de Reconocimiento)
+```yaml
+alert source=web_server_logs pattern: "uri_path LIKE '%/chunk-%.js' OR uri_path LIKE '%main.js'"
+  threshold: 40 events in 30 seconds
+  group_by: src_ip
+  action: alert
+  msg: "Fuga de Información: Enumeración o descargas masivas de fragmentos JavaScript"
+  reference: OWASP Top 10 - A01:2021-Broken Access Control (CWE-615)
+```
+* **Falsos positivos esperables:** Despliegues masivos en producción (fase de release) que fuercen a los navegadores de clientes legítimos a descargar en cascada los nuevos fragmentos (*chunks*) compilados de la SPA.
+* **Tuning recomendado si FPR alta:** Excluir del filtrado las peticiones que provengan de las direcciones IP internas corporativas o que contengan la cabecera `Cache-Control` validando una recarga legítima de caché de recursos estáticos.
+
+#### Regla SIEM #4 — Modern Web Application (Fingerprinting Pasivo)
+* **Sin detección SIEM en tiempo real — requiere DAST scanner periódico.**
+* **Risk:** Informational | **Confidence:** Medium
+* **Falsos positivos esperables:** No aplica.
+* **Tuning recomendado si FPR alta:** Esta alerta identifica características arquitectónicas del lado del cliente (Single Page Applications, enrutadores dinámicos). Al ser el comportamiento nativo y legítimo de la infraestructura digital de la Ferretería El Martillo, no constituye un patrón malicioso para el monitoreo correlacional en tiempo real.
+
+#### Regla SIEM #5 — User Agent Fuzzer (Escaneo Activo de Vulnerabilidades)
+```yaml
+alert source=web_server_logs pattern: "http_user_agent LIKE '%ZAP%' OR http_user_agent LIKE '%Fuzz%' OR uri_path LIKE '%/assets%'"
+  threshold: 15 events in 5 seconds
+  group_by: src_ip
+  action: block
+  msg: "Ataque Activo: Intento de fuzzing automatizado sobre directorios base de la aplicación"
+  reference: OWASP Top 10 - A05:2021-Security Misconfiguration
+```
+* **Falsos positivos esperables:** Rastreadores automatizados internos mal configurados o herramientas empresariales de monitorización de rendimiento de aplicaciones (APM) realizando pruebas sintéticas.
+* **Tuning recomendado si FPR alta:** Correlacionar esta regla estrictamente con un incremento inusual en las respuestas del servidor de la familia `4xx` (recursos no encontrados) para asegurar que se trata de un escaneo de fuerza bruta invasivo.
+
+---
+
+### 4.6 Cierre integral del Módulo 4
+
+| Capa de defensa | Sección que la cubre | Control específico |
+|-----------------|----------------------|---------------------|
+| **Identidad** | Sección 1 (IAM Azure) | RBAC + matriz de roles |
+| **Vulnerabilidades** | Sección 2 (Nmap + CVSS) | Inventario + priorización |
+| **Sistema operativo** | Sección 3 (CIS Hardening) | Reducción de surface attack |
+| **Aplicación web** | Sección 4 (OWASP audit) | Detección + mitigación |
+| **Detección continua** | Sección 4.5 (Reglas SIEM) | Visibilidad operativa |
+
+**¿Cuál de estas capas es la que tu organización tiene más débil?**
+La capa de **Aplicación Web** es actualmente la más vulnerable, evidenciada por la ausencia crítica de políticas de seguridad modernas (CSP) y la exposición pasiva de metadatos/comentarios en archivos de producción (`chunk-1qQQGal7.js`).
+
+**¿Cuál es la prioridad #1 de inversión próximos 90 días?**
+La prioridad absoluta es la **implementación de un Web Application Firewall (WAF)** integrado con un pipeline automático de **análisis DAST en CI/CD**. Esto mitigará de forma inmediata los vectores de inyección de código (XSS) derivados de la falta de CSP, bloqueará de forma autónoma los ataques automatizados de fuzzing y garantizará la visibilidad de seguridad antes de cada paso a producción.
