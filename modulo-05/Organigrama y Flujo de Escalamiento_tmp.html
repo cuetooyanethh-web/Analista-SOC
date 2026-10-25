@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Organigrama y Flujo de Escalamiento.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> or <div class="page"></div> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h2 id="parte-1-organigrama-del-soc-de-ferretería-el-martillo">Parte 1: Organigrama del SOC de Ferretería El Martillo</h2>
+<h3 id="contexto-del-escenario">Contexto del escenario</h3>
+<p>Ferretería El Martillo creció: ahora tiene 30 empleados, 3 sucursales en Lima y un servidor en la nube. La gerencia contrató a un proveedor de servicios de seguridad gestionados (MSSP) que les provee un SOC tercerizado de ~50 analistas rotando en turnos de 8h.</p>
+<h2 id="parte-1-organigrama-del-soc-de-ferretería-el-martillo-1">Parte 1: Organigrama del SOC de Ferretería El Martillo</h2>
+<h4 id="nivel-l1--triage-analyst">Nivel L1 — Triage Analyst</h4>
+<ul>
+<li><strong>Cantidad de personas en el turno:</strong> 6 analistas L1 por turno (Al ser un MSSP de ~50 personas que opera 24/7/365 en 3 turnos rotativos, se requieren aproximadamente 6 analistas concurrentes en línea para procesar el gran volumen de alertas de Ferretería El Martillo y los demás clientes del pool).</li>
+<li><strong>Herramientas que usa:</strong> SIEM (Microsoft Sentinel), ticketing (Jira Service Desk).</li>
+<li><strong>Tipo de alertas que maneja:</strong> Alertas estandarizadas de alto volumen, tales como intentos de fuerza bruta, bloqueos automáticos de malware por antivirus/EDR, o firmas conocidas de escaneadores web (<em>User Agent Fuzzer</em>).</li>
+<li><strong>Tiempo máximo antes de escalar:</strong> 20 minutos.</li>
+<li><strong>Autorización máxima sin escalamiento:</strong> Clasificación y descarte de falsos positivos conocidos (FPR) que estén explícitamente documentados en las playbooks operativas.</li>
+</ul>
+<h4 id="nivel-l2--incident-analyst">Nivel L2 — Incident Analyst</h4>
+<ul>
+<li><strong>Cantidad de personas en el turno:</strong> 2 analistas L2 por turno (Proporción técnica recomendada para absorber la carga analítica profunda de los casos escalados por el L1).</li>
+<li><strong>Herramientas adicionales vs. L1:</strong> Consolas completas de EDR/XDR (CrowdStrike), sandboxes para análisis dinámico (Any.Run) y frameworks de recolección forense (FTK Imager, Volatility).</li>
+<li><strong>Tipo de casos que recibe:</strong> Alertas complejas que superan los flujos estándar de las playbooks, sospechas de persistencia en sistemas operativos, movimientos laterales de red o anomalías críticas en el servidor en la nube de la ferretería.</li>
+<li><strong>Qué hace que L1 no puede hacer:</strong> Aislamiento activo e investigación manual de hosts comprometidos, reconstrucción de la línea de tiempo de un ataque, ingeniería inversa básica de scripts maliciosos y despliegue de políticas restrictivas de contención perimetral.</li>
+</ul>
+<h4 id="nivel-l3--senior-analyst--threat-hunter">Nivel L3 — Senior Analyst / Threat Hunter</h4>
+<ul>
+<li><strong>Cantidad de personas en el equipo:</strong> 1 analista L3 por turno (Especialista senior enfocado en la resolución de alta complejidad técnica).</li>
+<li><strong>Responsabilidades que no tienen L1/L2:</strong> Ejecución de campañas proactivas de <em>Threat Hunting</em>, análisis avanzado de binarios (malware de día cero), desarrollo de integraciones automatizadas complejas (SOAR) y tuning de reglas de detección fina para evitar la fatiga de alertas del nivel L1.</li>
+</ul>
+<h4 id="soc-manager">SOC Manager</h4>
+<ul>
+<li><strong>Cantidad de personas:</strong> 1 Manager por turno.</li>
+<li><strong>Responsabilidad:</strong> Supervisión operativa de la cola de incidentes y aseguramiento de los Acuerdos de Nivel de Servicio (SLAs), interlocución de crisis directa con la gerencia de Ferretería El Martillo y consolidación de métricas analíticas (no realiza investigación técnica directa).</li>
+</ul>
+<hr>
+<h3 id="12-integrar-el-organigrama">1.2 Integrar el organigrama</h3>
+<h4 id="representación-gráfica-sintaxis-nativa-en-mermaid">Representación Gráfica (Sintaxis nativa en Mermaid)</h4>
+<p><img src="file:///d:/ANALISTA SOC - CYBER102N2/bootcamp-cyber102/modulo-05/evidencias/organigrama.png" alt="org"></p>
+<h2 id="parte-2-flujograma-de-escalamiento--3-escenarios">Parte 2: Flujograma de Escalamiento — 3 Escenarios</h2>
+<h3 id="21-desarrollo-analítico-de-los-procedimientos-operativos-playbooks">2.1 Desarrollo Analítico de los Procedimientos Operativos (Playbooks)</h3>
+<p>A continuación, se detallan los flujos de decisión y de operaciones que ejecuta el equipo del SOC ante las alertas de la infraestructura de <strong>Ferretería El Martillo</strong>:</p>
+<hr>
+<h4 id="escenario-a-ráfaga-de-logins-fallidos-ataque-de-fuerza-bruta--credential-stuffing">Escenario A: Ráfaga de logins fallidos (Ataque de Fuerza Bruta / Credential Stuffing)</h4>
+<p>Alerta: a las 2:47 AM, 23 intentos fallidos en 4 minutos para admin-contabilidad, desde una IP no reconocida.</p>
+<p>La pista importante es verificar si los intentos proceden de una aplicación, tarea programada, VPN o sistema automatizado legítimo; también hay que comprobar si hubo un inicio de sesión exitoso después de los fallos.</p>
+<p><img src="file:///d:/ANALISTA SOC - CYBER102N2/bootcamp-cyber102/modulo-05/evidencias/flujo1.png" alt="org"></p>
+<ul>
+<li>Tiempo estimado de L1 si no escala: 7 minutos. Si necesita escalar, debe preparar el ticket en paralelo con las comprobaciones restantes, sin retrasar una alerta crítica.</li>
+</ul>
+<hr>
+<h4 id="escenario-b-proceso-sospechoso-en-servidor">Escenario B: Proceso sospechoso en servidor</h4>
+<p>Alerta: a las 11:15 AM, el servidor de facturación ejecuta cmd.exe que inicia PowerShell oculto con un comando codificado. Por su contexto y ofuscación, debe tratarse como posible incidente de alta prioridad y escalarse a L2 rápidamente.</p>
+<p>Durante los primeros cinco minutos, L1 recopila evidencia sin ejecutar el comando ni intentar decodificarlo en el servidor productivo.</p>
+<p><img src="file:///d:/ANALISTA SOC - CYBER102N2/bootcamp-cyber102/modulo-05/evidencias/flujo2.png" alt="org"></p>
+<ul>
+<li>Tiempo estimado de L1 antes de escalar: 5 minutos de recopilación inicial, con escalamiento inmediato al reconocer el comportamiento sospechoso. La verificación de una explicación legítima no debe retrasar la notificación a L2. Si la evidencia apunta a ejecución maliciosa, L1 no debe cerrar el caso ni borrar archivos.</li>
+</ul>
+<hr>
+<h4 id="escenario-c--tráfico-outbound-inusual">Escenario C — Tráfico outbound inusual</h4>
+<p>Alerta: desde las 3:00 PM, el punto de venta de Miraflores envía tráfico HTTP a una IP no reconocida, geolocalizada en Rusia, en ráfagas de 50 KB cada dos minutos.</p>
+<p>La geolocalización por sí sola no demuestra que exista un ataque. L1 debe comprobar si el destino pertenece a un proveedor aprobado, qué aplicación genera el tráfico y si el volumen o el horario son normales para ese punto de venta.</p>
+<p><img src="file:///d:/ANALISTA SOC - CYBER102N2/bootcamp-cyber102/modulo-05/evidencias/flujo3.png" alt="org"></p>
+<ul>
+<li>Tiempo estimado de L1 si no escala: 9 minutos. Si el destino no está aprobado o no se puede explicar el patrón, L1 escala antes de alcanzar el límite operativo. Si aparecen indicios de exfiltración activa o compromiso, escala inmediatamente.</li>
+</ul>
+<h3 id="22-flujograma-integrado-de-decisiones-y-escalamiento-mermaid">2.2 Flujograma Integrado de Decisiones y Escalamiento (Mermaid)</h3>
+<p>Este flujograma representa visualmente la lógica, los tiempos de procesamiento en primer nivel y la transición de la información hacia los analistas avanzados (L2 y L3) según el diseño operativo de tu SOC:</p>
+<pre><code class="language-mermaid"><div class="mermaid">flowchart TD
+    %% EVENTOS DE ENTRADA (L1)
+    ENTRY_A["[2:47 AM] Alerta SIEM<br/>Fuerza Bruta Admin-Contabilidad<br/>23 Fallos / 4 Min / IP Perú"] --> L1_ACT_A["L1: Enriquecer IP en AbuseDB<br/>Buscar Login Exitoso en Sentinel<br/>(Tiempo estimado: 8 min)"]
+    
+    ENTRY_B["[11:15 AM] Alerta SIEM<br/>Servidor Facturación ejecuta<br/>cmd.exe / PowerShell -encoded"] --> L1_ACT_B["L1: Decodificar Base64 en CyberChef<br/>Identificar Proceso Padre en EDR<br/>(Tiempo estimado: 3 min)"]
+    
+    ENTRY_C["[3:00 PM] Alerta SIEM<br/>POS Miraflores: Tráfico Outbound<br/>Ráfagas 50KB c/2 min a IP Rusia"] --> L1_ACT_C["L1: Analizar IP Rusia (¿Nodo Tor?)<br/>Validar Criterio de Negocio del POS<br/>(Tiempo estimado: 6 min)"]
+
+    %% ÁRBOL DE DECISIÓN - ESCENARIO A
+    L1_ACT_A --> DEC_A{"¿Se detectó login exitoso<br/>o el ataque continúa<br/>de forma agresiva?"}
+    DEC_A -- SÍ --> ESC_A["ESCALAR A L2 (Jira Ticket)<br/>• Formato: Plantilla SOC JSON logs<br/>• Tiempo de decisión: 4 min"] --> L2_A["L2: Bloqueo perimetral IP<br/>Reseteo forzado en Azure AD<br/>Contención de cuenta"]
+    DEC_A -- NO: Fue FP del usuario --> CLOSE_A["L1: Documentar en Jira<br/>Cerrar como Falso Positivo<br/>(Tiempo total: 12 min)"]
+
+    %% ÁRBOL DE DECISIÓN - ESCENARIO B
+    L1_ACT_B --> DEC_B{"¿El script decodificado<br/>es una tarea de mantenimiento<br/>legítima del proveedor?"}
+    DEC_B -- NO: Comando evasivo/malicioso --> ESC_B["POLÍTICA DE EMERGENCIA a L2<br/>• Formato: Notificación Crítica Chat + Jira<br/>• Tiempo de decisión: 2 min"] --> L2_B["L2: Network Isolation del Servidor<br/>en CrowdStrike EDR (Contención)<br/>Volcado de memoria RAM"]
+    DEC_B -- SÍ --> CLOSE_B["L1: Adjuntar script claro<br/>Cerrar con aval de TI en ticket"]
+
+    %% ÁRBOL DE DECISIÓN - ESCENARIO C
+    L1_ACT_C --> DEC_C{"¿El POS está haciendo<br/>Beaconing constante hacia<br/>infraestructura C2/Rusia?"}
+    DEC_C -- SÍ: Posible exfiltración tarjetas --> ESC_C["ESCALAMIENTO CRÍTICO A L2• Formato: Ticket de Incidente Crítico• Tiempo de decisión: 3 min"] --> L2_C["L2: Bloqueo IP en FirewallAislamiento del host POS en RedExtracción de artefactos"]
+DEC_C -- NO --> CLOSE_C["L1: Documentar flujos de redCerrar Ticket"]
+%% ESCALAMIENTO SUPERIOR E INTERVENCIÓN ESTRATÉGICA
+L2_A -.-> L3_A["L3: Tuning de firmas de Fuerza Bruta"]
+L2_B -.-> L3_B["L3: Análisis forense de memoria con Volatility"]
+L2_C -.-> L3_C["L3: Caza de malware POS RAM Scraper con FTK"]
+L3_A & L3_B & L3_C --> M_MGMT["SOC MANAGER• Control estricto de cumplimiento de SLAs• Gestión de crisis corporativa con Gerencia de Ferretería El Martillo"]
+%% ESTILOS VISUALES
+classDef triage fill:#e8f5e9,stroke:#2e7d32,color:#222,stroke-width:2px;
+classDef incident fill:#e1f5fe,stroke:#0277bd,color:#222,stroke-width:2px;
+classDef senior fill:#ffe6cc,stroke:#e65100,color:#222,stroke-width:2px;
+classDef manager fill:#ffcccc,stroke:#b71c1c,color:#222,stroke-width:2px;
+classDef close_style fill:#eeeeee,stroke:#616161,color:#555,stroke-width:1px;
+class L1_ACT_A,L1_ACT_B,L1_ACT_C triage;
+class L2_A,L2_B,L2_C incident;
+class L3_A,L3_B,L3_C senior;
+class M_MGMT manager;
+class CLOSE_A,CLOSE_B,CLOSE_C close_style;
+</div></code></pre>
+
+</body>
+</html>
