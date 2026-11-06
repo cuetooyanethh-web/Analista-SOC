@@ -137,46 +137,47 @@ Se identificaron 490 eventos de creación de procesos en el equipo Windows win10
 
 ---
 
-## Parte 1: Investigación de Event IDs 4625 y 4624 — Logins fallidos y exitosos
+# Parte 1: Investigación de Event IDs 4625 y 4624 — Logins fallidos y exitosos
 
-### 1.1 Filtrar Event ID 4625 (Logins Fallidos)
+## 1.1 Filtrar Event ID 4625 (logins fallidos)
 
-Se aplicó el filtro avanzado `data.win.system.eventID: 4625` en la pestaña **Events** de **Threat Hunting** con un rango temporal de 24 horas. Tras auditar la estructura de la telemetría enviada por el agente, se consolidaron las siguientes métricas forenses:
+**Filtro:** `data.win.system.eventID: 4625`
 
-| Campo Evaluado | Valor Encontrado en el Dataset Real |
-|:---|:---|
-| **¿Cuántos eventos 4625 hay en total?** | 29 hits |
-| **¿Cuál es la cuenta más intentada?** | admin.ferre |
-| **¿Cuál es la IP de origen más frecuente?** | 127.0.0.1 |
-| **¿En qué período de tiempo se concentran los intentos?** | **Inicio:** 12:58:16 <br> **Fin:** 12:58:23 |
-| **¿Los intentos son continuos o en ráfagas?** | En ráfagas de alta densidad (29 intentos en un intervalo de 7 segundos) |
+| Campo | Valor encontrado |
+|---|---|
+| ¿Cuántos eventos 4625 hay en total? | 0 en el registro Security de Windows revisado |
+| ¿Cuál es la cuenta más intentada? | No disponible; no se encontraron eventos |
+| ¿Cuál es la IP de origen más frecuente? | No disponible |
+| ¿En qué período se concentran los intentos? | No se identificaron intentos fallidos |
+| ¿Los intentos son continuos o en ráfagas? | No se puede determinar porque no hay eventos 4625 |
+
+## 1.2 Identificar si es fuerza bruta
+
+No se encontró evidencia de un ataque de fuerza bruta, ya que no hay eventos 4625 en el registro Security revisado. Un ataque de fuerza bruta suele presentar múltiples intentos fallidos en poco tiempo desde una misma IP o contra una cuenta; un error legítimo de contraseña normalmente presenta pocos intentos aislados.
+
+## 1.3 Filtrar Event ID 4624 (logins exitosos)
+
+**Filtro:** `data.win.system.eventID: 4624`
+
+Se encontraron 17 eventos 4624 en el registro Security de Windows. Al revisar sus detalles, todos corresponden al usuario SYSTEM, dominio NT AUTHORITY y Logon Type 5.
+
+| Campo | Valor encontrado |
+|---|---|
+| ¿Hubo algún login exitoso después de la ráfaga de 4625? | No se puede establecer; no se encontraron eventos 4625 para correlacionar |
+| ¿A qué hora ocurrió el 4624? | Entre el 05/11/2026 a las 23:46:50 y el 06/11/2026 a las 11:20:35 |
+| ¿Cuántos minutos después del último 4625? | No aplica |
+| ¿Qué cuenta inició sesión exitosamente? | SYSTEM |
+| ¿Cuál es el Logon Type? | 5 |
+| ¿Qué significa ese Logon Type? | Inicio de sesión de servicio de Windows |
+
+## Conclusión
+
+En el registro Security revisado se identificaron 17 inicios de sesión exitosos de tipo 5, correspondientes a servicios de Windows, y ningún evento 4625. Por lo tanto, no hay evidencia suficiente para confirmar fuerza bruta ni para establecer una correlación entre intentos fallidos y un acceso exitoso.
+
+**Nota:** Estos resultados corresponden a la consulta del registro Security de Windows. Deben contrastarse con los resultados del dashboard de Wazuh usando el rango de tiempo del dataset del laboratorio.
 
 ---
 
-### 1.2 Identificar si es Fuerza Bruta
-
-**El patrón de los eventos 4625 es 100% consistente con un ataque de fuerza bruta automatizado, justificado por la inyección masiva de 29 intentos fallidos consecutivos en una ventana estrecha de solo 7 segundos contra un perfil administrativo específico. Se descarta un error humano ordinario de clave olvidada ya que un usuario legítimo genera eventos aislados e intermitentes espaciados en el tiempo; en cambio, el ataque informático se diferencia en los logs por registrar una altísima densidad de fallos simultáneos por red (`logonType: 3`) portando de forma sistemática el código crítico de sub-estado `0xc000006a`.**
-
----
-
-### 1.3 Filtrar Event ID 4624 en el Mismo Período
-
-Se modificó la consulta a `data.win.system.eventID: 4624` para evaluar la efectividad final de la incursión y establecer la correlación temporal exacta de la brecha de seguridad:
-
-| Campo de Investigación | Valor Encontrado en el Dataset Real |
-|:---|:---|
-| **¿Hubo algún login exitoso después de la ráfaga de 4625?** | Sí |
-| **Si sí: ¿a qué hora ocurrió el 4624?** | 11:32:37 |
-| **¿Cuántos minutos después del último 4625?** | Menos de 1 minuto (Ocurrió en ráfaga inmediata tras romper la clave) |
-| **¿Qué cuenta inició sesión exitosamente?** | admin.ferre |
-| **¿Cuál es el data.win.eventdata.logonType?** | 3 |
-| **¿Qué significa ese Logon Type?** | Red (Network Logon - Acceso remoto a recursos corporativos compartidos a través de la red) |
-
----
-
-### ✅ Checkpoint Parte 1 - Validación de Evidencias Unificadas
-
-La investigación inicial corrobora la materialización de un compromiso perimetral crítico. El adversario superó las defensas mediante una ráfaga automatizada por diccionario, logrando el secuestro operativo de la cuenta de soporte externo (`admin.ferre`) mediante una conexión remota no autorizada.
 
 * **Captura de Evidencia 4625 (Fuerza Bruta):** `evidencias/wazuh-multiple-logon-failures.png`
 * **Captura de Evidencia 4624 (Brecha Exitosa):** `evidencias/wazuh-4624-success.png`
@@ -186,34 +187,40 @@ La investigación inicial corrobora la materialización de un compromiso perimet
 ![wazuh](evidencias/wazuh-4624-success.png)
 
 
-### 2.1 Filtrar Event ID 4688 (Proceso Creado)
+# Parte 2: Investigación de Event IDs 4688 y 4720 — Proceso y cuenta creada
 
-Se aplicó la consulta avanzada `data.win.system.eventID: 4688` en la pestaña **Events** de **Threat Hunting** obteniendo un volumen de **834 hits totales** en el clúster de Wazuh. Tras correlacionar la ventana temporal inmediata de la intrusión, se aislaron los binarios ejecutados por el atacante:
+### 2.1 Filtrar Event ID 4688 (proceso creado)
 
-| Campo Evaluado | Evento 1 (Intérprete de Comandos) | Evento 2 (Utilitario Forense Local) |
-|:---|:---|:---|
-| **Nombre del proceso** <br>`(newProcessName)` | `C:\Windows\System32\cmd.exe` | `C:\Windows\System32\net.exe` |
-| **Proceso padre** <br>`(parentProcessName)` | `C:\Windows\System32\wscript.exe` | `C:\Windows\System32\cmd.exe` |
-| **Línea de comandos** <br>`(commandLine)` | `cmd /c net use \\127.0.0.1\c$ ...` | `net user` / `net user admin.ferre` |
-| **Hora del evento** | 12:58:26 | 12:58:26 |
-| **¿Es sospechoso?** <br>*(sí/no + por qué)* | **Sí.** Invocado de forma automatizada por un motor de scripts en segundo plano (`wscript.exe`), patrón clásico para evadir la detección interactiva. | **Sí.** Refleja la ejecución secuencial de técnicas de descubrimiento y reconocimiento para auditar las cuentas vigentes en el sistema. |
+**Filtro:** `data.win.system.eventID: 4688`
 
----
+| Campo | Evento 1 | Evento 2 |
+|---|---|---|
+| Nombre del proceso | `cmd.exe` | `cmd.exe` |
+| Proceso padre | `cscript.exe` | `runas.exe` |
+| Línea de comandos | `cmd.exe /c net use \\127.0.0.1\c$ /user:admin.ferre ClaveInvalida10 2>NUL` | `cmd.exe /c whoami` |
+| Hora del evento | 05/11/2026 12:58:23.396 | 05/11/2026 12:48:55.030 |
+| ¿Es sospechoso? | Sí. Ejecución automatizada de un intento de acceso al recurso administrativo C$ utilizando credenciales explícitas. | No por sí solo. Es una consulta de identidad ejecutada mediante `runas.exe`. |
 
-### 2.2 Filtrar Event ID 4720 (Cuenta Creada)
+**Análisis:** El primer evento presenta mayor interés por el uso de `cscript.exe`, `cmd.exe` y `net use` con credenciales explícitas. El segundo evento corresponde a una consulta de identidad de `lab19.ferre`. La diferencia temporal entre ambos eventos es de aproximadamente 9 minutos y 28 segundos.
 
-Se aplicó la consulta avanzada `data.win.system.eventID: 4720` en la consola web, registrando un volumen neto de **2 hits** en la base de datos de auditoría de identidades:
+### 2.2 Filtrar Event ID 4720 (cuenta creada)
 
-| Campo de Investigación | Valor Encontrado en el Dataset Real |
-|:---|:---|
-| **¿Se creó alguna cuenta nueva? (sí/no)** | Sí |
-| **Si sí: nombre de la cuenta creada** | `soc.prueba` |
-| **¿Quién la creó?** `(subjectUserName)` | `admin.ferre` |
-| **¿A qué hora?** | 12:58:26 |
-| **¿Es coherente con el timeline de los 4625 → 4624? ¿Por qué?** | **Sí.** Es completamente coherente ya que ocurre exactamente tres segundos después de la brecha inicial exitosa (`4624` a las 12:58:23). Esto comprueba de manera inequívoca la línea de tiempo forense: el atacante comprometió la credencial de soporte externo mediante fuerza bruta y abusó de inmediato de sus privilegios elevados para implantar una cuenta backdoor persistente en el sistema operativo. |
+**Filtro utilizado:**
+```text
+data.win.system.eventID: 4720
+```
 
----
+| Campo | Valor encontrado |
+|---|---|
+| ¿Se creó alguna cuenta nueva? (sí/no) | Sí, se identificaron dos cuentas nuevas. |
+| Si sí: nombre de la cuenta creada | `lab19.ferre` y `soc.prueba`. |
+| ¿Quién la creó? (`data.win.eventdata.subjectUserName`) | `admin.ferre`. |
+| ¿A qué hora? | `soc.prueba`: 11:13:14.475 y `lab19.ferre`: 11:38:52.707 (05/11/2026). |
+| ¿Es coherente con el timeline de los 4625 → 4624? ¿Por qué? | Sí. La cuenta `lab19.ferre` fue creada a las 11:38 y posteriormente presentó intentos fallidos de inicio de sesión alrededor de las 11:53 y un inicio de sesión exitoso a las 12:48. La secuencia temporal es coherente con la creación y posterior utilización de la cuenta, aunque no demuestra por sí sola una relación causal. |
 
+**Análisis:** Ambos eventos tienen la regla Wazuh `60109`, nivel 8, y muestran que las cuentas fueron creadas deshabilitadas y con la opción de no requerir contraseña habilitada. Esta configuración requiere revisión para determinar si la creación de las cuentas fue autorizada.
+
+**Evidencias:** Adjuntar capturas de los dos eventos 4720 encontrados en Wazuh.
 ### ✅ Checkpoint Parte 2 - Evidencias Forenses Integradas
 
 * **Captura de Procesos Hostiles (Event ID 4688 - 834 hits):** `evidencias/wazuh-processes-4688.png`
@@ -225,23 +232,33 @@ Se aplicó la consulta avanzada `data.win.system.eventID: 4720` en la consola we
 
 ## Parte 3: Informe de Investigación
 
-### 3.1 Construir la Línea de Tiempo Cronológica
+### 3.1 Construir la línea de tiempo
 
-Se reconstruyó la secuencia cronológica de los hechos correlacionando los registros del host `win10` ordenados por marcas de tiempo ascendentes:
+| Hora (05/11/2026) | Event ID | Descripción del evento | Nivel de sospecha |
+|---|---:|---|---|
+| 11:13:15.383 | 4720 | `admin.ferre` crea la cuenta `soc.prueba`, deshabilitada y sin requerimiento de contraseña. | Medio |
+| 11:38:53.829 | 4720 | `admin.ferre` crea la cuenta `lab19.ferre`, deshabilitada y sin requerimiento de contraseña. | Medio |
+| 11:53:10.638 | 4625 | Primer inicio de sesión fallido registrado para `lab19.ferre`, desde `::1`. | Medio |
+| 11:53:20.732 | 4625 | Segundo inicio de sesión fallido para `lab19.ferre`, desde `::1`. | Medio |
+| 12:48:53.924 | 4624 | Inicio de sesión exitoso de `lab19.ferre`, tipo 2 (interactivo). | Medio |
+| 12:48:55.030 | 4688 | `runas.exe` ejecuta `cmd.exe /c whoami` para comprobar la identidad de ejecución. | Bajo |
+| 12:58:23.396 | 4688 | `cscript.exe` ejecuta `cmd.exe` con `net use` para acceder a `\\127.0.0.1\c$` usando las credenciales de `admin.ferre`. | Alto |
 
-| Hora | Event ID | Descripción del Evento | Nivel de Sospecha |
-|:---:|:---:|:---|:---:|
-| **12:58:16** | **4625** | Inicio de ráfaga automatizada de logins fallidos contra `admin.ferre`. | **Medio** |
-| **12:58:23** | **4625** | Último intento fallido de la ráfaga de fuerza bruta. | **Medio** |
-| **12:58:23** | **4624** | Login exitoso de la cuenta comprometida por red (`logonType: 3`). | **Alto** |
-| **12:58:26** | **4688** | Proceso ejecutado (`cmd.exe` y `net.exe`) para reconocimiento local. | **Alto** |
-| **12:58:26** | **4720** | Cuenta no autorizada de persistencia (`soc.prueba`) creada en el sistema. | **Crítico** |
+**Nota:** Los niveles de sospecha son una valoración de investigación basada en el contexto de los eventos, no el nivel numérico de las reglas de Wazuh.
 
----
-
-### 3.2 Redactar la Hipótesis de Investigación
+### 3.2 Hipótesis de investigación
 
 **Hipótesis de investigación:**
-A partir del análisis del dataset y la telemetría en Wazuh, observé que la estación de administración `win10` de la Ferretería El Martillo sufrió un compromiso perimetral completo. Los eventos 4625 sugieren que un actor de amenazas externo lanzó un ataque automatizado de fuerza bruta dirigido a adivinar las credenciales del técnico externo. El evento 4624 posterior indica que el ataque tuvo éxito inmediato, permitiendo al intruso securizar un inicio de sesión no autorizado por red. Los eventos 4688/4720 son totalmente consistentes con actividades tácticas de post-explotación, donde el adversario ejecutó comandos de descubrimiento en la consola e implantó la cuenta maliciosa `soc.prueba` para garantizar su persistencia permanente en el host. Mi nivel de confianza en esta hipótesis es **ALTO** porque todas las marcas de tiempo se solapan perfectamente de forma secuencial en una ventana de pocos segundos y las variables lógicas extraídas del JSON expandido (como `logonType: 3` y `subjectUserName: admin.ferre`) ratifican de forma científica la intrusión real.
 
-**Recomendación de L1:** **[ESCALAR A L2]** de forma prioritaria para iniciar la contención inmediata del endpoint y aislamiento lógico de la red.
+A partir del análisis del dataset, observé que la cuenta `admin.ferre` creó dos cuentas nuevas: `soc.prueba` y `lab19.ferre`, ambas configuradas como deshabilitadas y sin requerimiento de contraseña.
+
+Los eventos 4625 muestran dos intentos fallidos de inicio de sesión asociados a `lab19.ferre`.
+
+El evento 4624 posterior indica que esta cuenta consiguió iniciar sesión correctamente de forma interactiva.
+
+Los eventos 4688 muestran la ejecución de `whoami` mediante `runas.exe` y, posteriormente, un comando `net use` que intentó acceder al recurso administrativo `C$` utilizando las credenciales de `admin.ferre`.
+
+Mi nivel de confianza en esta hipótesis es **medio**, porque existe una secuencia de eventos que requiere investigación, pero no se ha confirmado que todos formen parte de una misma actividad maliciosa ni que el acceso administrativo haya sido exitoso.
+
+**Recomendación de L1: Escalar a L2** para investigar el uso de las cuentas creadas, validar la actividad de `admin.ferre` y comprobar si hubo acceso no autorizado al recurso administrativo.
+
