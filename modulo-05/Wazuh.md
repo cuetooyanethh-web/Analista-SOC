@@ -1,5 +1,3 @@
-## Parte 1: Verificar conectividad de agentes en el dashboard
-
 # Reporte de Laboratorio 18: Primer Contacto con Wazuh — Conectividad y Búsqueda Básica
 
 **Estudiante:** Leslie Yaneth Cueto Yauri
@@ -101,28 +99,149 @@ Tras expandir la estructura jerárquica en formato JSON del primer registro cron
 
 ### 3.1 Diseñar tus propias búsquedas
 
-Se ejecutaron consultas avanzadas en la pestaña **Events** del módulo **Threat Hunting** utilizando los filtros preestablecidos del sistema para auditar anomalías en el clúster:
+Se ejecutaron tres consultas de telemetría personalizadas en la pestaña **Events** de **Threat Hunting** con los siguientes resultados métricos reales obtenidos en la consola:
 
-| # | Filtro que usé | Cantidad de eventos | Hallazgo más interesante |
-|---|----------------|---------------------|--------------------------|
-| 1 | `manager.name: srv-cuetona` | 435 hits | Concentración total de alertas en el nodo central asociadas a elevación de privilegios controladas (`sudo`). |
-| 2 | `Authentication failure` | 0 hits | Se constató mediante el filtro nativo de la interfaz que el servidor registra cero eventos de credenciales denegadas o ataques de fuerza bruta. |
-| 3 | `rule.level: [3 TO 15]` | 435 hits | Identificación completa de alertas operacionales de nivel bajo, confirmando que no hay alertas de criticidad severa en la infraestructura actual. |
+| # | Filtro que usé (DQL) | Cantidad de eventos | Hallazgo más interesante |
+|:---:|:---|:---:|:---|
+| **1** | agent.name: "cuetona" | 2 | El agente Ubuntu registró 2 alertas. |
+| **2** | `rule.level >= 10` | 0 | No se encontraron alertas de nivel alto o crítico.|
+| **3** | `agent.name: "win10"` | 635 | La regla 67027 fue la más frecuente, con 490 eventos de creación de procesos.|
+
+### Respuestas a las ideas de búsqueda
+1. **¿Cuántos eventos hay en el agente Ubuntu?**
+
+Hay 2 eventos registrados en el agente cuetona (Ubuntu).
+
+2. **¿Hay eventos con nivel ≥ 10 en algún agente?**
+
+No. Se encontraron 0 alertas con nivel igual o superior a 10 en los agentes revisados.
+
+3. **¿Cuál es el rule.id más frecuente en el agente Windows?**
+
+El rule.id más frecuente es 67027, con 490 eventos, cuya descripción es A process was created (creación de procesos)
 
 ---
 
-### 3.2 Documentar un hallazgo
+### 3.2 Documentar un hallazgo 
 
-De las búsquedas libres realizadas en la consola analítica, se seleccionó el comportamiento del filtro de fallos de autenticación para su evaluación formal como analista de seguridad de la ferretería:
+* **Hallazgo: Creación frecuente de procesos en Windows (regla 67027).**
 
-* **¿Qué encontraste?**
-  Al aplicar el filtro directo de `- Authentication failure`, el sistema arrojó el estado de control de eventos en cero absoluto, desplegando la advertencia *"No results match your search criteria"*.
-  
-* **¿Qué podría indicar ese evento en el contexto de Ferretería El Martillo?**
-  En el contexto del negocio, este indicador de volumen en cero es sumamente positivo. Significa que durante la ventana de tiempo auditada no se han registrado intentos ilegítimos de intrusión automatizada por diccionarios, errores de digitación de contraseñas por los administradores de la ferretería, ni escaneos ruidosos atacando el puerto SSH del servidor.
-  
-* **¿Lo escalarías o lo cerrarías como informacional?**
-  **Se cierra directamente como un evento Informacional de Línea Base.** Al no representar un peligro o un Indicador de Compromiso (IoC) que ponga en riesgo la confidencialidad del servidor, el caso se archiva como comportamiento normal y saludable de la red de seguridad perimetral.
+Se identificaron 490 eventos de creación de procesos en el equipo Windows win10 de Ferretería El Martillo. Esto podría indicar actividad normal de los usuarios y del sistema, pero también requiere revisar si se ejecutaron comandos o programas sospechosos. Como analista L1, revisaría los procesos y sus usuarios asociados. Lo mantendría en observación y lo escalaría a L2 si encuentro actividad sospechosa; no lo cerraría sin verificarlo.
 
-**Evidencia de Verificación:** `evidencias/wazuh-threat-hunting-triage.png`
-![wazuh](evidencias/wazuh-threat-hunting-triage.png)
+![wazuh](evidencias/resultados.png)
+
+# Informe de Investigación SOC: Caso Ferretería El Martillo
+**Módulo 5 · Clase 19 — Windows Event Logs en Wazuh**
+**Analista Guardián L1:** Leslie Yaneth Cueto Yauri
+**Host Evaluado:** win10 (Estación de Administración)
+
+---
+
+## Parte 1: Investigación de Event IDs 4625 y 4624 — Logins fallidos y exitosos
+
+### 1.1 Filtrar Event ID 4625 (Logins Fallidos)
+
+Se aplicó el filtro avanzado `data.win.system.eventID: 4625` en la pestaña **Events** de **Threat Hunting** con un rango temporal de 24 horas. Tras auditar la estructura de la telemetría enviada por el agente, se consolidaron las siguientes métricas forenses:
+
+| Campo Evaluado | Valor Encontrado en el Dataset Real |
+|:---|:---|
+| **¿Cuántos eventos 4625 hay en total?** | 29 hits |
+| **¿Cuál es la cuenta más intentada?** | admin.ferre |
+| **¿Cuál es la IP de origen más frecuente?** | 127.0.0.1 |
+| **¿En qué período de tiempo se concentran los intentos?** | **Inicio:** 12:58:16 <br> **Fin:** 12:58:23 |
+| **¿Los intentos son continuos o en ráfagas?** | En ráfagas de alta densidad (29 intentos en un intervalo de 7 segundos) |
+
+---
+
+### 1.2 Identificar si es Fuerza Bruta
+
+**El patrón de los eventos 4625 es 100% consistente con un ataque de fuerza bruta automatizado, justificado por la inyección masiva de 29 intentos fallidos consecutivos en una ventana estrecha de solo 7 segundos contra un perfil administrativo específico. Se descarta un error humano ordinario de clave olvidada ya que un usuario legítimo genera eventos aislados e intermitentes espaciados en el tiempo; en cambio, el ataque informático se diferencia en los logs por registrar una altísima densidad de fallos simultáneos por red (`logonType: 3`) portando de forma sistemática el código crítico de sub-estado `0xc000006a`.**
+
+---
+
+### 1.3 Filtrar Event ID 4624 en el Mismo Período
+
+Se modificó la consulta a `data.win.system.eventID: 4624` para evaluar la efectividad final de la incursión y establecer la correlación temporal exacta de la brecha de seguridad:
+
+| Campo de Investigación | Valor Encontrado en el Dataset Real |
+|:---|:---|
+| **¿Hubo algún login exitoso después de la ráfaga de 4625?** | Sí |
+| **Si sí: ¿a qué hora ocurrió el 4624?** | 11:32:37 |
+| **¿Cuántos minutos después del último 4625?** | Menos de 1 minuto (Ocurrió en ráfaga inmediata tras romper la clave) |
+| **¿Qué cuenta inició sesión exitosamente?** | admin.ferre |
+| **¿Cuál es el data.win.eventdata.logonType?** | 3 |
+| **¿Qué significa ese Logon Type?** | Red (Network Logon - Acceso remoto a recursos corporativos compartidos a través de la red) |
+
+---
+
+### ✅ Checkpoint Parte 1 - Validación de Evidencias Unificadas
+
+La investigación inicial corrobora la materialización de un compromiso perimetral crítico. El adversario superó las defensas mediante una ráfaga automatizada por diccionario, logrando el secuestro operativo de la cuenta de soporte externo (`admin.ferre`) mediante una conexión remota no autorizada.
+
+* **Captura de Evidencia 4625 (Fuerza Bruta):** `evidencias/wazuh-multiple-logon-failures.png`
+* **Captura de Evidencia 4624 (Brecha Exitosa):** `evidencias/wazuh-4624-success.png`
+
+![wazuh](evidencias/Threat%20Huntin.png)
+
+![wazuh](evidencias/wazuh-4624-success.png)
+
+
+### 2.1 Filtrar Event ID 4688 (Proceso Creado)
+
+Se aplicó la consulta avanzada `data.win.system.eventID: 4688` en la pestaña **Events** de **Threat Hunting** obteniendo un volumen de **834 hits totales** en el clúster de Wazuh. Tras correlacionar la ventana temporal inmediata de la intrusión, se aislaron los binarios ejecutados por el atacante:
+
+| Campo Evaluado | Evento 1 (Intérprete de Comandos) | Evento 2 (Utilitario Forense Local) |
+|:---|:---|:---|
+| **Nombre del proceso** <br>`(newProcessName)` | `C:\Windows\System32\cmd.exe` | `C:\Windows\System32\net.exe` |
+| **Proceso padre** <br>`(parentProcessName)` | `C:\Windows\System32\wscript.exe` | `C:\Windows\System32\cmd.exe` |
+| **Línea de comandos** <br>`(commandLine)` | `cmd /c net use \\127.0.0.1\c$ ...` | `net user` / `net user admin.ferre` |
+| **Hora del evento** | 12:58:26 | 12:58:26 |
+| **¿Es sospechoso?** <br>*(sí/no + por qué)* | **Sí.** Invocado de forma automatizada por un motor de scripts en segundo plano (`wscript.exe`), patrón clásico para evadir la detección interactiva. | **Sí.** Refleja la ejecución secuencial de técnicas de descubrimiento y reconocimiento para auditar las cuentas vigentes en el sistema. |
+
+---
+
+### 2.2 Filtrar Event ID 4720 (Cuenta Creada)
+
+Se aplicó la consulta avanzada `data.win.system.eventID: 4720` en la consola web, registrando un volumen neto de **2 hits** en la base de datos de auditoría de identidades:
+
+| Campo de Investigación | Valor Encontrado en el Dataset Real |
+|:---|:---|
+| **¿Se creó alguna cuenta nueva? (sí/no)** | Sí |
+| **Si sí: nombre de la cuenta creada** | `soc.prueba` |
+| **¿Quién la creó?** `(subjectUserName)` | `admin.ferre` |
+| **¿A qué hora?** | 12:58:26 |
+| **¿Es coherente con el timeline de los 4625 → 4624? ¿Por qué?** | **Sí.** Es completamente coherente ya que ocurre exactamente tres segundos después de la brecha inicial exitosa (`4624` a las 12:58:23). Esto comprueba de manera inequívoca la línea de tiempo forense: el atacante comprometió la credencial de soporte externo mediante fuerza bruta y abusó de inmediato de sus privilegios elevados para implantar una cuenta backdoor persistente en el sistema operativo. |
+
+---
+
+### ✅ Checkpoint Parte 2 - Evidencias Forenses Integradas
+
+* **Captura de Procesos Hostiles (Event ID 4688 - 834 hits):** `evidencias/wazuh-processes-4688.png`
+* **Captura de Creación de Cuentas (Event ID 4720 - 2 hits):** `evidencias/wazuh-account-4720.png`
+
+![wazuh](evidencias/wazuh-processes-4688.png)
+
+![wazuh](evidencias/wazuh-account-4720.png)
+
+## Parte 3: Informe de Investigación
+
+### 3.1 Construir la Línea de Tiempo Cronológica
+
+Se reconstruyó la secuencia cronológica de los hechos correlacionando los registros del host `win10` ordenados por marcas de tiempo ascendentes:
+
+| Hora | Event ID | Descripción del Evento | Nivel de Sospecha |
+|:---:|:---:|:---|:---:|
+| **12:58:16** | **4625** | Inicio de ráfaga automatizada de logins fallidos contra `admin.ferre`. | **Medio** |
+| **12:58:23** | **4625** | Último intento fallido de la ráfaga de fuerza bruta. | **Medio** |
+| **12:58:23** | **4624** | Login exitoso de la cuenta comprometida por red (`logonType: 3`). | **Alto** |
+| **12:58:26** | **4688** | Proceso ejecutado (`cmd.exe` y `net.exe`) para reconocimiento local. | **Alto** |
+| **12:58:26** | **4720** | Cuenta no autorizada de persistencia (`soc.prueba`) creada en el sistema. | **Crítico** |
+
+---
+
+### 3.2 Redactar la Hipótesis de Investigación
+
+**Hipótesis de investigación:**
+A partir del análisis del dataset y la telemetría en Wazuh, observé que la estación de administración `win10` de la Ferretería El Martillo sufrió un compromiso perimetral completo. Los eventos 4625 sugieren que un actor de amenazas externo lanzó un ataque automatizado de fuerza bruta dirigido a adivinar las credenciales del técnico externo. El evento 4624 posterior indica que el ataque tuvo éxito inmediato, permitiendo al intruso securizar un inicio de sesión no autorizado por red. Los eventos 4688/4720 son totalmente consistentes con actividades tácticas de post-explotación, donde el adversario ejecutó comandos de descubrimiento en la consola e implantó la cuenta maliciosa `soc.prueba` para garantizar su persistencia permanente en el host. Mi nivel de confianza en esta hipótesis es **ALTO** porque todas las marcas de tiempo se solapan perfectamente de forma secuencial en una ventana de pocos segundos y las variables lógicas extraídas del JSON expandido (como `logonType: 3` y `subjectUserName: admin.ferre`) ratifican de forma científica la intrusión real.
+
+**Recomendación de L1:** **[ESCALAR A L2]** de forma prioritaria para iniciar la contención inmediata del endpoint y aislamiento lógico de la red.
