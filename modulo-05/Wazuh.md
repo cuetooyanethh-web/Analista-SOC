@@ -294,3 +294,61 @@ Mi nivel de confianza en esta hipótesis es **medio**, porque existe una secuenc
 
 **Recomendación de L1: Escalar a L2** para investigar el uso de las cuentas creadas, validar la actividad de `admin.ferre` y comprobar si hubo acceso no autorizado al recurso administrativo.
 
+----
+**LABORATORIO 20**
+
+
+
+# LAB 20 – PARTE 1: ANÁLISIS DEL INCIDENTE Y LÍNEA DE TIEMPO
+
+## 1.1 Revisar el incidente en Wazuh
+
+**Agente:** `win10`  
+**Fecha:** 05/11/2026  
+**Cuenta investigada:** `admin.ferre`
+
+### Línea de tiempo del incidente
+
+| # | Hora | Event ID | Descripción | Cuenta/Proceso | Sospecha |
+|---|---|---|---|---|---|
+| 1 | 11:38:53.829 | 4720 | Cuenta creada. | `lab19.ferre` por `admin.ferre` | Media |
+| 2 | 12:48:53.692 | 4624 | Login exitoso. | `admin.ferre` → `lab19.ferre` – Logon Type: 2 | Alta |
+| 3 | 12:57:52.043 | 4625 (inicio ráfaga) | Inicio de múltiples logins fallidos. | `admin.ferre` – NTLM – `127.0.0.1` | Alta |
+| 4 | 12:58:23.552 | 4625 (último confirmado) | Login fallido; estado `0xc0000234` (cuenta bloqueada). | `admin.ferre` – NTLM – `127.0.0.1` | Alta |
+| 5 | 23:57:13.147 | 4688 | Proceso ejecutado: actualización programada de Microsoft Edge. | `MicrosoftEdgeUpdate.exe` – `taskeng.exe` – SYSTEM | Baja |
+
+**Nota:** El evento 4720 ocurrió antes del inicio de sesión exitoso y de la ráfaga de fallos. La tabla está ordenada cronológicamente.
+
+## 1.2 Confirmar la hipótesis
+
+### ¿Cuántos eventos 4625 hubo y en qué ventana de tiempo?
+
+Se confirmaron 11 eventos 4625 contra la cuenta `admin.ferre`, entre las 12:57:52.043 y las 12:58:23.552, en una ventana aproximada de 31.5 segundos.
+
+La alerta de correlación `60204`, de nivel 10, agrupó 8 de estos eventos en aproximadamente 10 segundos.
+
+### ¿Hubo un 4624 exitoso? ¿A qué hora y con qué Logon Type?
+
+Sí. Se encontró un evento 4624 a las 12:48:53.692, correspondiente a un inicio de sesión exitoso con Logon Type 2 (interactivo).
+
+El usuario que realizó la acción fue `admin.ferre` y la cuenta de destino fue `lab19.ferre`.
+
+### ¿Hubo 4688 o 4720 en los minutos siguientes?
+
+No se confirmó ningún evento 4688 ni 4720 en los minutos inmediatamente posteriores a la ráfaga.
+
+El evento 4720 de creación de `lab19.ferre` ocurrió a las 11:38:53, antes del incidente.
+
+El evento 4688 se registró a las 23:57:13 y corresponde a la ejecución programada de `MicrosoftEdgeUpdate.exe`, por lo que no presenta una relación temporal directa con los fallos de autenticación.
+
+
+
+![Eventos 4625](evidencias/captura_01_eventos_4625.png)
+
+![Alerta 60204](evidencias/captura_02_alerta_60204.png)
+
+![Login exitoso 4624](evidencias/captura_03_login_4624.png)
+
+![Cuenta creada 4720](evidencias/captura_04_cuenta_4720.png)
+
+![Proceso 4688](evidencias/captura_05_proceso_4688.png)
