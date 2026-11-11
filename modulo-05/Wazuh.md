@@ -4,6 +4,7 @@
 **Host Central de Auditoría (Manager):** srv-cuetona (192.168.0.9)
 
 ---
+ LABORATORIO 18
 
 ## Parte 1: Verificar conectividad de agentes en el dashboard
 
@@ -57,44 +58,86 @@ Wazuh agent_control. List of available agents:
 ## Parte 2: Primera búsqueda — Security Events
 
 ### 2.1 Navegar a Security Events
-Se localizó y accedió al panel de eventos de seguridad navegando a través de la barra interactiva del menú lateral izquierdo bajo el módulo de **Threat intelligence ➔ Threat Hunting ➔ pestaña Events**.
+
+Se localizó y accedió al panel de eventos de seguridad mediante el menú lateral izquierdo, siguiendo la ruta:
+
+**Threat intelligence → Threat Hunting → pestaña Events.**
 
 ### 2.2 Filtrar por agente Windows
-Para aislar y auditar la actividad de los hosts, se implementó la directiva de filtrado en la barra superior. En este caso particular, analizamos la actividad del host central de operaciones para validar la integridad del clúster:
 
-* **Filtro aplicado:** `agent.name: srv-cuetona`
+Se aplicó el siguiente filtro para visualizar los eventos correspondientes al agente Windows:
+
+- **Filtro aplicado:** `agent.name: "win10"`
 
 ---
 
 ### 2.3 Explorar un evento en detalle
-Tras expandir la estructura jerárquica en formato JSON del primer registro cronológico devuelto por la consulta, se identificaron y anotaron los siguientes campos forenses:
 
-| Campo | Valor que encontraste |
-|-------|-----------------------|
-| `rule.id` | 5402 |
+Se seleccionó un evento de creación de procesos de Windows.
+
+| Campo | Valor encontrado |
+|---|---|
+| `rule.id` | 67027 |
 | `rule.level` | 3 |
-| `rule.description` | Successful sudo to ROOT executed. |
-| `agent.name` | srv-cuetona |
-| `timestamp` | Nov 3, 2026 @ 11:37:49.469 |
-| `data.win.system.eventID` | N/A (Es un evento nativo del sistema Linux) |
+| `rule.description` | A process was created. |
+| `agent.name` | win10 |
+| `timestamp` | Nov 10, 2026 @ 18:10:10.021 |
+| `data.win.system.eventID` | 4688 |
+
+#### Interpretación del evento
+
+- **Proceso creado:** `SearchFilterHost.exe`
+- **Proceso padre:** `SearchIndexer.exe`
+- **Usuario:** `WIN10$` (cuenta del sistema).
+- **Ruta:** `C:\Windows\System32\SearchFilterHost.exe`
+- **Canal:** `Security`
+- **Resultado:** `AUDIT_SUCCESS`
+
+El proceso `SearchFilterHost.exe` pertenece al servicio de búsqueda e indexación de Windows. Su ejecución es normalmente legítima.
+
+**Conclusión:** Wazuh registró correctamente la creación de un proceso en Windows. La regla tiene nivel 3, por lo que corresponde a un evento de baja severidad y no cumple el requisito de nivel ≥ 5 de la sección 2.4.
 
 ---
 
 ### 2.4 Identificar un evento con nivel ≥ 5
 
-* **¿Qué describe `rule.description`?**
-  `Successful sudo to ROOT executed.` (Elevación de privilegios exitosa al usuario supremo ROOT mediante el comando sudo).
+**Evento seleccionado: Windows application error event**
 
-* **¿Qué evento del sistema generó esta alerta?**
-  Esta alerta de seguridad fue generada por el subsistema de auditoría interna de credenciales de Linux (`sudo`). Se disparó en el kernel en el preciso instante en que el operador invocó el editor de texto nativo en la ruta `/usr/bin/nano` para abrir y alterar el archivo de configuración altamente sensible de la base de datos de Wazuh localizado en `/etc/wazuh-indexer/opensearch.yml`.
+| Campo | Valor encontrado |
+|---|---|
+| `rule.id` | 60602 |
+| `rule.level` | 9 |
+| `rule.description` | Windows application error event. |
+| `agent.name` | win10 |
+| `timestamp` | Nov 10, 2026 @ 17:45:44.848 |
+| `data.win.system.eventID` | 5973 |
 
-* **¿Considerarías esto como algo para investigar como Analista L1? ¿Por qué?**
-  **Sí, se debe investigar formalmente.** En el contexto de un Centro de Operaciones de Seguridad (SOC) real, cualquier elevación de privilegios hacia el usuario `root` para alterar archivos de configuración internos de la propia herramienta SIEM es catalogada de inmediato como una actividad crítica. El Analista L1 tiene la responsabilidad mandatoria de verificar en el sistema de tickets de cambio si este evento se alinea con una ventana de mantenimiento técnico programada y debidamente autorizada por el equipo de ingeniería. Si ocurre fuera de horario o sin justificación de soporte, representa un Indicador de Compromiso (IoC) severo de que un atacante ha ganado acceso perimetral e intenta modificar los archivos internos para desactivar el monitoreo forense o evadir la detección.
+#### Análisis del evento
 
-**Evidencia de Verificación:** `evidencias/wazuh-threat-hunting-json.png`
+**¿Qué describe `rule.description`?**
 
+Describe un error relacionado con la ejecución o activación de una aplicación de Windows.
 
- ![wazuh](evidencias/wazuh-threat-hunting-json.png) 
+**¿Qué evento del sistema generó esta alerta?**
+
+El evento Windows **5973**, registrado en el canal `Application`, indica que no se pudo iniciar la aplicación Microsoft Store (`Microsoft.WindowsStore_8wekyb3d8bbwe!App`) porque no se inició dentro del tiempo requerido.
+
+- **Aplicación:** Microsoft Store.
+- **Proveedor:** `Microsoft-Windows-Immersive-Shell`.
+- **Severidad registrada por Windows:** `ERROR`.
+- **Nivel asignado por Wazuh:** `9`.
+- **Código de error:** `-2144927142`.
+
+**¿Considerarías esto como algo para investigar como L1? ¿Por qué?**
+
+Sí. Como analista SOC L1 investigaría el evento porque Wazuh lo clasificó con nivel 9 y Windows registró un error de aplicación. Revisaría si el problema se repite, si afecta a otros usuarios y si existen eventos relacionados en el registro `Microsoft-Windows-TWinUI/Operational`.
+
+Sin embargo, este evento por sí solo no demuestra actividad maliciosa. Podría tratarse de un problema de funcionamiento de Microsoft Store.
+
+#### Evidencia
+
+![wazuh](evidencias/wazuh-threat-hunting-json.png)
+ 
 ## Parte 3: Exploración libre — 3 búsquedas propias
 
 ### 3.1 Diseñar tus propias búsquedas
@@ -103,39 +146,22 @@ Se ejecutaron tres consultas de telemetría personalizadas en la pestaña **Even
 
 | # | Filtro que usé (DQL) | Cantidad de eventos | Hallazgo más interesante |
 |:---:|:---|:---:|:---|
-| **1** | agent.name: "cuetona" | 2 | El agente Ubuntu registró 2 alertas. |
-| **2** | `rule.level >= 10` | 0 | No se encontraron alertas de nivel alto o crítico.|
-| **3** | `agent.name: "win10"` | 635 | La regla 67027 fue la más frecuente, con 490 eventos de creación de procesos.|
+| **1** | agent.name: "srv-cuetona" | 326 | Regla 5402: ejecución de sudo para reiniciar Wazuh Dashboard como ROOT. Nivel 3. |
+| **2** | `rule.level >= 10` | 25 |Regla 60154, nivel 12: admin.ferre agregó un miembro al grupo local Administradores de Windows..|
+| **3** | `	agent.name: "win10" AND rule.level >= 5` | 1,387 |Regla 19005: cumplimiento CIS de Windows 10 de 26 %, con 306 controles fallidos. Nivel 9.|
 
-### Respuestas a las ideas de búsqueda
-1. **¿Cuántos eventos hay en el agente Ubuntu?**
+#### 3.2 Documentar un hallazgo
 
-Hay 2 eventos registrados en el agente cuetona (Ubuntu).
+**Hallazgo: Modificación del grupo local Administradores de Windows.**
 
-2. **¿Hay eventos con nivel ≥ 10 en algún agente?**
+Se identificó la regla `60154`, nivel 12, correspondiente al evento de seguridad Windows `4732`, que registra la incorporación de un miembro al grupo local Administradores. La modificación fue realizada por la cuenta `admin.ferre`; el miembro agregado aparece identificado mediante un SID terminado en `1014`.
 
-No. Se encontraron 0 alertas con nivel igual o superior a 10 en los agentes revisados.
+En Ferretería El Martillo, este cambio podría representar una asignación legítima de privilegios o una modificación no autorizada que aumente el riesgo de acceso administrativo al equipo.
 
-3. **¿Cuál es el rule.id más frecuente en el agente Windows?**
-
-El rule.id más frecuente es 67027, con 490 eventos, cuya descripción es A process was created (creación de procesos)
+**Acción L1:** Escalaría el evento a L2 para verificar la identidad del SID, la autorización del cambio y su relación con alguna solicitud administrativa. No lo cerraría sin validación.
 
 ---
-
-### 3.2 Documentar un hallazgo 
-
-* **Hallazgo: Creación frecuente de procesos en Windows (regla 67027).**
-
-Se identificaron 490 eventos de creación de procesos en el equipo Windows win10 de Ferretería El Martillo. Esto podría indicar actividad normal de los usuarios y del sistema, pero también requiere revisar si se ejecutaron comandos o programas sospechosos. Como analista L1, revisaría los procesos y sus usuarios asociados. Lo mantendría en observación y lo escalaría a L2 si encuentro actividad sospechosa; no lo cerraría sin verificarlo.
-
-![wazuh](evidencias/resultados.png)
-
-# Informe de Investigación SOC: Caso Ferretería El Martillo
-**Módulo 5 · Clase 19 — Windows Event Logs en Wazuh**
-**Analista Guardián L1:** Leslie Yaneth Cueto Yauri
-**Host Evaluado:** win10 (Estación de Administración)
-
----
+**LABORATORIO 19**
 
 # Parte 1: Investigación de Event IDs 4625 y 4624 — Logins fallidos y exitosos
 
@@ -145,36 +171,42 @@ Se identificaron 490 eventos de creación de procesos en el equipo Windows win10
 
 | Campo | Valor encontrado |
 |---|---|
-| ¿Cuántos eventos 4625 hay en total? | 0 en el registro Security de Windows revisado |
-| ¿Cuál es la cuenta más intentada? | No disponible; no se encontraron eventos |
-| ¿Cuál es la IP de origen más frecuente? | No disponible |
-| ¿En qué período se concentran los intentos? | No se identificaron intentos fallidos |
-| ¿Los intentos son continuos o en ráfagas? | No se puede determinar porque no hay eventos 4625 |
+| ¿Cuántos eventos 4625 hay en total? | 38 hits |
+| ¿Cuál es la cuenta más intentada? | admin.ferre |
+| ¿Cuál es la IP de origen más frecuente? |127.0.0.1|
+| ¿En qué período se concentran los intentos? | 05/11/2026, 12:58:20–12:58:23|
+| ¿Los intentos son continuos o en ráfagas? | Ráfaga intensa: varios intentos en aproximadamente 3 segundos |
 
 ## 1.2 Identificar si es fuerza bruta
 
-No se encontró evidencia de un ataque de fuerza bruta, ya que no hay eventos 4625 en el registro Security revisado. Un ataque de fuerza bruta suele presentar múltiples intentos fallidos en poco tiempo desde una misma IP o contra una cuenta; un error legítimo de contraseña normalmente presenta pocos intentos aislados.
+**¿El patrón de los 4625 es consistente con un ataque de fuerza bruta? Justifica con los datos de la tabla.**
+
+Sí. Se registraron múltiples fallos de autenticación contra admin.ferre en pocos segundos y Wazuh activó la regla 60204 de nivel 10, correspondiente a múltiples fallos de inicio de sesión.
+
+**¿O podría ser un usuario legítimo que olvidó su contraseña? ¿Qué diferencia ambos escenarios en los logs?**
+
+Un usuario legítimo normalmente genera pocos intentos aislados. Una ráfaga de múltiples contraseñas incorrectas en segundos, que activa una alerta de correlación, es más consistente con fuerza bruta simulada.
 
 ## 1.3 Filtrar Event ID 4624 (logins exitosos)
 
 **Filtro:** `data.win.system.eventID: 4624`
 
-Se encontraron 17 eventos 4624 en el registro Security de Windows. Al revisar sus detalles, todos corresponden al usuario SYSTEM, dominio NT AUTHORITY y Logon Type 5.
+
 
 | Campo | Valor encontrado |
 |---|---|
-| ¿Hubo algún login exitoso después de la ráfaga de 4625? | No se puede establecer; no se encontraron eventos 4625 para correlacionar |
-| ¿A qué hora ocurrió el 4624? | Entre el 05/11/2026 a las 23:46:50 y el 06/11/2026 a las 11:20:35 |
-| ¿Cuántos minutos después del último 4625? | No aplica |
-| ¿Qué cuenta inició sesión exitosamente? | SYSTEM |
-| ¿Cuál es el Logon Type? | 5 |
-| ¿Qué significa ese Logon Type? | Inicio de sesión de servicio de Windows |
+| ¿Hubo algún login exitoso después de la ráfaga de 4625? | si|
+| ¿A qué hora ocurrió el 4624? |09/11/2026 – 14:21:02 |
+| ¿Cuántos minutos después del último 4625? |913 minutos aprox. (15 h 13 min) |
+| ¿Qué cuenta inició sesión exitosamente? | cuetona |
+| ¿Cuál es el Logon Type? | 2 |
+| ¿Qué significa ese Logon Type? | Inicio de sesión interactivo local |
 
 ## Conclusión
 
-En el registro Security revisado se identificaron 17 inicios de sesión exitosos de tipo 5, correspondientes a servicios de Windows, y ningún evento 4625. Por lo tanto, no hay evidencia suficiente para confirmar fuerza bruta ni para establecer una correlación entre intentos fallidos y un acceso exitoso.
+Se identificó un inicio de sesión exitoso (evento 4624, regla 60118, nivel 3) aproximadamente 15 horas y 13 minutos después del último intento fallido observado. La cuenta autenticada fue cuetona, mediante un inicio de sesión interactivo local (Logon Type 2). Este evento confirma una autenticación exitosa posterior, pero no demuestra que la cuenta admin.ferre, objeto de los intentos fallidos, haya sido comprometida.
 
-**Nota:** Estos resultados corresponden a la consulta del registro Security de Windows. Deben contrastarse con los resultados del dashboard de Wazuh usando el rango de tiempo del dataset del laboratorio.
+Hay una diferencia de aproximadamente 5 minutos entre timestamp y systemTime del evento 4624. Para el checkpoint usamos la hora de Wazuh (timestamp), pero conviene documentar esa discrepancia.
 
 ---
 
