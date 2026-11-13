@@ -496,8 +496,52 @@ Los logs indican un compromiso exitoso de la cuenta `admin.ferre` mediante una r
 * **Monitoreo adicional:** Auditar los eventos de creación de servicios (`Event ID 7045`), modificaciones en el registro de Windows para persistencia (`Event ID 4657`), y revisar las conexiones salientes de red del agente en búsqueda de balizas de Comando y Control (C2).
 * **Escalamiento:** Escalar a L2 — Supervisor de Turno de Respuesta a Incidentes SOC.
 
-#### ✅ Checkpoint Parte 4: Evidencia Forense de Reglas Encadenadas
+----
+## Parte 5: Desafío Avanzado — Regla Encadenada
+
+### 5.3 Implementar la regla encadenada
+
+Las reglas avanzadas fueron incorporadas con éxito en el archivo `local_rules.xml` utilizando la estructura de correlación basada en contexto histórico (`timeframe` e `if_matched_sid`), quedando definidas de la siguiente manera:
+
+```xml
+<group name="windows_security,attack_chain,persistence,">
+
+  <!-- ETAPA 2: Creación de cuenta backdoor tras Fuerza Bruta -->
+  <rule id="100106" level="12" timeframe="600">
+    <if_matched_sid>100105</if_matched_sid>
+    <if_sid>60109</if_sid>
+    <same_field>win.system.computer</same_field>
+    <description>Ferretería El Martillo — Cadena de Ataque ETAPA 2: Creación de cuenta backdoor \$(win.eventdata.targetUserName) tras Fuerza Bruta (T1136.001)</description>
+    <mitre>
+      <id>T1136.001</id>
+    </mitre>
+  </rule>
+
+  <!-- ETAPA 3: Acceso por Red con la cuenta backdoor creada -->
+  <rule id="100107" level="14" timeframe="600">
+    <if_matched_sid>100106</if_matched_sid>
+    <if_sid>60106, 60204</if_sid>
+    <field name="win.eventdata.logonType">3</field>
+    <same_field>win.system.computer</same_field>
+    <description>Ferretería El Martillo — ALERTA CRÍTICA: Ataque Multi-Etapa Completado. Acceso por Red via Cuenta Backdoor creada por atacante</description>
+    <mitre>
+      <id>T1078.003</id>
+    </mitre>
+  </rule>
+
+</group>
+```
+
+---
+
+### 5.4 Justificar el modelo de persistencia
+
+* **¿Por qué la secuencia T1110 → T1136 → Logon Type 3 modela un ataque de persistencia?**
+  Porque representa el ciclo de vida completo de un intruso intentando asegurar el control a largo plazo sobre el servidor. Primero, utiliza fuerza bruta (`T1110`) para romper las defensas iniciales de una cuenta existente; segundo, tras comprometer el sistema, crea de inmediato una nueva cuenta local (*backdoor* `T1136`) para no depender de la contraseña original si esta es cambiada; y tercero, realiza un inicio de sesión por red (`Logon Type 3`) con la nueva identidad falsa para validar que sus credenciales de respaldo funcionan remotamente.
+
+* **¿Qué ventaja tiene una regla encadenada sobre 3 reglas independientes en términos de falsos positivos?**
+  La ventaja principal es la correlación basada en contexto y causalidad temporal. Si las tres reglas operaran de manera independiente, la creación de una cuenta legítima por parte de soporte técnico o una ráfaga aislada de un usuario que olvidó su clave generarían falsas alarmas críticas por separado; en cambio, la regla encadenada actúa como un embudo estricto que solo se activa a niveles críticos si y solo si los tres eventos ocurren de forma sucesiva, en el mismo host y dentro de la ventana de tiempo delimitada, reduciendo drásticamente la fatiga de alertas en el SOC.
+
+#### ✅ Checkpoint Parte 5: Evidencia Forense de Reglas Encadenadas
 
 ![Correlación avanzada de las reglas 100105, 100106 y 100107 en Wazuh Dashboard](evidencias/checkpoint-parte5.png)
-
-### Parte 5: Desafío Avanzado — Regla Encadenada 
