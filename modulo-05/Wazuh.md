@@ -346,3 +346,158 @@ Mi nivel de confianza en esta hipótesis es **medio**, porque existe una secuenc
 
 **5. Creación de cuenta de usuario (`Event ID 4720`)**
 ![Cuenta creada 4720](evidencias/evento5-4720-cuenta.png)
+
+## Parte 2 : Mapeo MITRE ATT&CK + Diseño de Regla
+
+#### Técnica 1 — Acceso inicial / Escalada
+* **Técnica:** `T1110` (Brute Force) — Táctica: *Credential Access*.
+* **Sub-técnica más específica:** **`T1110.001` (Password Guessing)**, ya que el atacante probó múltiples contraseñas distintas contra una única cuenta objetivo (`admin.ferre`).
+* **Event IDs del dataset que evidencian este TTP:** **`4625`** (10 inicios de sesión fallidos consecutivos) y **`4624`** (1 inicio de sesión exitoso posterior desde la misma IP).
+
+#### Técnica 2 — Persistencia
+* **Técnica:** `T1136` (Create Account) — Táctica: *Persistence*.
+* **Sub-técnica:** **`T1136.001` (Local Account)**, ya que la cuenta nueva se creó localmente en el equipo `win10` (`WORKGROUP`).
+* **Event IDs que lo evidencian:** **`4720`** (creación de cuenta de usuario) y **`4688`** (creación de proceso `net.exe` / `net1.exe`).
+
+
+#### Técnica 3 — Ejecución / Evasión de defensa
+* **Técnica que describe el uso de PowerShell ofuscado:** **Command and Scripting Interpreter: PowerShell** (y **Obfuscated Files or Information** para la ofuscación).
+* **ID de la técnica:** **`T1059.001`** (PowerShell) / **`T1027`** (Obfuscated Files or Information).
+* **Event IDs que lo evidencian:** **`4688`** (creación de proceso desde `powershell.exe`).
+
+![Mapeo MITRE](evidencias/mitre%20.png)
+### 2.3 Diseñar la regla de correlación
+
+* **Mi regla detecta:** Ataque de fuerza bruta por adivinanza de contraseñas (`Password Guessing` - MITRE `T1110.001`) dirigido contra cuentas de usuario en los equipos de Ferretería El Martillo.
+* **Condición principal:** Múltiples intentos fallidos consecutivos de inicio de sesión sobre un mismo objetivo dentro de una ventana corta de tiempo.
+  * **Event ID:** `4625` (Error de una cuenta al iniciar sesión en Windows, regla base `60122`).
+  * **Umbral (threshold):** `5` eventos en `2` minutos (`120` segundos). *(Un usuario legítimo que olvida su clave suele fallar 1 o 2 veces; 5 fallos en 2 minutos indican un script automatizado sin generar falsos positivos).*
+  * **Campo de agrupación (misma cuenta / misma IP):** `win.eventdata.targetUserName` y `win.eventdata.ipAddress` (misma cuenta destino desde la misma dirección IP de origen).
+* **Acción (nivel de alerta):** `rule.level = 10` *(Justifica escalamiento inmediato al equipo SOC Nivel 2 / Administración de TI, ya que a partir del nivel 10 Wazuh clasifica la alerta como severidad alta).*
+* **Descripción de la alerta:** `Posible ataque de fuerza bruta (T1110.001): multiples intentos fallidos de inicio de sesion contra $(win.eventdata.targetUserName) desde $(win.eventdata.ipAddress)`
+
+
+## Parte 3: Implementación de la Regla en Wazuh
+### 3.2 Escribir el archivo de regla (`custom_brute_force.xml`)
+
+```xml
+<group name="windows_security,brute_force,">
+
+  <rule id="100105" level="10" frequency="5" timeframe="120">
+    <if_matched_sid>60122</if_matched_sid>
+    <same_field>win.eventdata.targetUserName</same_field>
+    <description>Ferretería El Martillo — Fuerza bruta detectada: multiples intentos fallidos contra cuenta \$(win.eventdata.targetUserName) (T1110.001)</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+  </rule>
+
+</group>
+```
+
+---
+
+
+### 3.4 Verificar que la regla funciona
+
+Se aplicaron los filtros de telemetría correspondientes en la pestaña **Events** de **Threat Hunting** para aislar el identificador personalizado implementado en el mánager.
+
+* **¿Apareció al menos una alerta con tu `rule.id`?:** **Sí**. Al ingresar la consulta se desplegó el registro capturado por el SIEM.
+* **¿El nivel de la alerta corresponde al que configuraste?:** **Sí**, figura con **Nivel 10**, garantizando que el incidente resalte de manera prioritaria en la consola del SOC.
+* **¿La descripción es legible y profesional?:** **Sí**, documenta técnicamente el intento de intrusión bajo el contexto organizacional de Ferretería El Martillo y mapea formalmente la técnica de MITRE ATT&CK.
+
+#### ✅ Checkpoint Parte 3: Evidencia de la Regla Personalizada
+
+![Evidencia de regla 100105 disparada con Nivel 10 en Wazuh Dashboard](evidencias/evento2-4625-fin.png)
+
+### Parte 4 Redacción del Ticket de Seguridad
+
+# Ticket de Seguridad — Incidente de Acceso No Autorizado
+## Ferretería El Martillo — 12 de Noviembre de 2026
+
+---
+
+## Información General
+
+| Campo | Detalle |
+|-------|---------|
+| **ID Ticket** | INC-M5-001 |
+| **Fecha/Hora de Detección** | 12/11/2026 @ 11:00:04 |
+| **Analista L1** | Leslie Yaneth Cueto Yauri |
+| **Sistema Afectado** | Servidor Windows — win10 (Agente 002) |
+| **Severidad** | **Alta** — Justificación: Se confirmó un compromiso de cuenta administrativa (`admin.ferre`) mediante fuerza bruta por red, seguido de actividades de persistencia y reconocimiento interno en el host afectado. |
+| **Estado** | Abierto — Escalado a L2 |
+
+---
+
+## Descripción del Incidente
+
+La telemetría recolectada por el SIEM indica una actividad anómala de autenticación dirigida contra la cuenta de usuario local `admin.ferre` en el host `win10`. El análisis inicial revela que se registró una ráfaga automatizada compuesta por 10 intentos fallidos de inicio de sesión consecutivos (Event ID 4625) concentrados en una ventana temporal de apenas 14 segundos (entre las 10:56:59 y las 10:57:13). Los registros analizados muestran el código de subestado `0xC0000234`, lo que confirma que las políticas de seguridad locales del sistema operativo llegaron a bloquear la cuenta temporalmente debido al volumen de transacciones erróneas.
+
+La evidencia sugiere que el vector de fuerza bruta empleado corresponde a la modalidad de adivinación de contraseñas (*Password Guessing*), originado localmente desde la dirección de red `127.0.0.1` a través del proceso de autenticación por red `NtLmSsp` (Logon Type 3). Posteriormente, a las 11:00:04, los logs indican un inicio de sesión exitoso (Event ID 4624) bajo las mismas propiedades criptográficas y de red para la cuenta comprometida, lo que demuestra la validación de credenciales posterior a la ráfaga y detonó la alerta de correlación personalizada de nivel crítico en el mánager.
+
+Inmediatamente después del compromiso de la cuenta, los registros de creación de procesos (Event ID 4688) evidencian que se ejecutaron binarios nativos del sistema operativo (`net.exe` y `net1.exe`) invocados desde una consola de PowerShell. Esta actividad fue catalogada bajo la táctica de Descubrimiento, identificándose comandos específicos dirigidos a listar los usuarios de la máquina. Finalmente, la telemetría del sistema de auditoría capturó la creación de una nueva cuenta de usuario local denominada `soporte-ti-aprobado` (Event ID 4720) a las 11:09:57, acción realizada bajo el contexto de seguridad del usuario comprometido, lo que denota una clara maniobra de persistencia dentro del servidor de la empresa.
+
+---
+
+## Evidencia
+
+| # | Event ID | Hora | Descripción | Campo Clave |
+|---|----------|------|-------------|-------------|
+| 1 | 4625 | 10:56:59.713 | Inicio de ráfaga de inicios de sesión fallidos | IP: `127.0.0.1`, Cuenta: `admin.ferre` |
+| 2 | 4625 | 10:57:13.160 | Cierre de ráfaga e indicación de cuenta bloqueada | IP: `127.0.0.1`, Cuenta: `admin.ferre` |
+| 3 | 4624 | 11:00:04.531 | Inicio de sesión correcto (Fuerza bruta exitosa) | Logon Type: `3` (Red), Cuenta: `admin.ferre` |
+| 4 | 4688 | 10:57:06.430 | Creación de proceso para el comando de ataque | Proceso: `net.exe`, Comando: `use \\127.0.0.1\IPC$` |
+| 5 | 4720 | 11:09:57.949 | Creación de una nueva cuenta de usuario local | Cuenta Creada: `soporte-ti-aprobado` |
+
+---
+
+## Mapeo MITRE ATT&CK
+
+| TTP | Técnica | Evidencia |
+|-----|---------|-----------|
+| **T1110.001** | Password Guessing | 10 eventos 4625 en menos de 1 minuto dirigidos a una sola cuenta desde `127.0.0.1`. |
+| **T1087.001** | Local Account Discovery | Evento 4688 asociado a la ejecución de comandos para listar usuarios locales. |
+| **T1136.001** | Local Account | Evento 4720 que confirma la creación e inserción de la cuenta `soporte-ti-aprobado`. |
+
+---
+
+## Regla de Correlación Creada
+
+```xml
+<group name="windows_security,brute_force,">
+  <rule id="100105" level="10" frequency="5" timeframe="120">
+    <if_matched_sid>60122</if_matched_sid>
+    <same_field>win.eventdata.targetUserName</same_field>
+    <description>Ferretería El Martillo — Fuerza bruta detectada: multiples intentos fallidos contra cuenta \$(win.eventdata.targetUserName) (T1110.001)</description>
+    <mitre>
+      <id>T1110.001</id>
+    </mitre>
+  </rule>
+</group>
+```
+
+* **rule.id asignado:** 100105
+* **Verificación:** **Sí**. La regla generó una alerta de Nivel 10 (Severidad Alta) de manera exitosa en el dashboard a las 23:32:55 tras procesar la secuencia correlacionada de eventos.
+
+---
+
+## Hipótesis
+
+Los logs indican un compromiso exitoso de la cuenta `admin.ferre` mediante una ráfaga automatizada de fuerza bruta (T1110.001) originada desde el host local. La evidencia sugiere que el actor de la amenaza obtuvo acceso de administrador e inició maniobras de persistencia mediante la creación de la cuenta backdoor `soporte-ti-aprobado` y la ejecución de scripts de reconocimiento (`whoami`, `net user`).
+* **Nivel de confianza:** **Alto**. Justificación: La correlación temporal es exacta; el inicio de sesión exitoso (4624) proviene del mismo origen (`127.0.0.1`) inmediatamente después del bloqueo por fallos (4625), encajando con las acciones subsiguientes de alteración de cuentas (4720).
+
+---
+
+## Recomendación de L1
+
+* **Acción inmediata:** L2 debe aislar de la red el host `win10` de forma preventiva para frenar un posible movimiento lateral, e invalidar todas las sesiones activas actuales de la cuenta `admin.ferre`.
+* **Contención sugerida:** Deshabilitar de manera inmediata la cuenta no autorizada `soporte-ti-aprobado` vía PowerShell (`net user soporte-ti-aprobado /active:no`) y forzar el cambio de contraseña de `admin.ferre` implementando una clave robusta alineada a la política corporativa.
+* **Monitoreo adicional:** Auditar los eventos de creación de servicios (`Event ID 7045`), modificaciones en el registro de Windows para persistencia (`Event ID 4657`), y revisar las conexiones salientes de red del agente en búsqueda de balizas de Comando y Control (C2).
+* **Escalamiento:** Escalar a L2 — Supervisor de Turno de Respuesta a Incidentes SOC.
+
+#### ✅ Checkpoint Parte 4: Evidencia Forense de Reglas Encadenadas
+
+![Correlación avanzada de las reglas 100105, 100106 y 100107 en Wazuh Dashboard](evidencias/checkpoint-parte5.png)
+
+### Parte 5: Desafío Avanzado — Regla Encadenada 
