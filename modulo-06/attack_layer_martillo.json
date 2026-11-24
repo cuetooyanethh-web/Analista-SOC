@@ -1,5 +1,5 @@
 {
-	"name": "layer1",
+	"name": "layer",
 	"versions": {
 		"attack": "20",
 		"navigator": "5.3.2",
@@ -35,19 +35,29 @@
 	"hideDisabled": false,
 	"techniques": [
 		{
-			"techniqueID": "T1547",
-			"tactic": "persistence",
-			"color": "",
+			"techniqueID": "T1033",
+			"tactic": "discovery",
+			"color": "#fd8d3c",
 			"comment": "",
 			"enabled": true,
 			"metadata": [],
 			"links": [],
-			"showSubtechniques": true
+			"showSubtechniques": false
+		},
+		{
+			"techniqueID": "T1082",
+			"tactic": "discovery",
+			"color": "#fd8d3c",
+			"comment": "",
+			"enabled": true,
+			"metadata": [],
+			"links": [],
+			"showSubtechniques": false
 		},
 		{
 			"techniqueID": "T1059",
 			"tactic": "execution",
-			"color": "",
+			"color": "#fce93b",
 			"comment": "",
 			"enabled": true,
 			"metadata": [],
@@ -55,9 +65,19 @@
 			"showSubtechniques": true
 		},
 		{
-			"techniqueID": "T1078",
-			"tactic": "stealth",
-			"color": "",
+			"techniqueID": "T1059.001",
+			"tactic": "execution",
+			"color": "#fce93b",
+			"comment": "",
+			"enabled": true,
+			"metadata": [],
+			"links": [],
+			"showSubtechniques": false
+		},
+		{
+			"techniqueID": "T1110",
+			"tactic": "credential-access",
+			"color": "#fc3b3b",
 			"comment": "",
 			"enabled": true,
 			"metadata": [],
@@ -65,44 +85,34 @@
 			"showSubtechniques": true
 		},
 		{
-			"techniqueID": "T1078",
-			"tactic": "persistence",
-			"color": "",
+			"techniqueID": "T1110.001",
+			"tactic": "credential-access",
+			"color": "#fc3b3b",
 			"comment": "",
 			"enabled": true,
 			"metadata": [],
 			"links": [],
-			"showSubtechniques": true
-		},
-		{
-			"techniqueID": "T1078",
-			"tactic": "initial-access",
-			"color": "",
-			"comment": "",
-			"enabled": true,
-			"metadata": [],
-			"links": [],
-			"showSubtechniques": true
-		},
-		{
-			"techniqueID": "T1614",
-			"tactic": "discovery",
-			"color": "",
-			"comment": "",
-			"enabled": true,
-			"metadata": [],
-			"links": [],
-			"showSubtechniques": true
+			"showSubtechniques": false
 		},
 		{
 			"techniqueID": "T1136",
 			"tactic": "persistence",
-			"color": "",
+			"color": "#fc6b6b",
 			"comment": "",
 			"enabled": true,
 			"metadata": [],
 			"links": [],
 			"showSubtechniques": true
+		},
+		{
+			"techniqueID": "T1136.001",
+			"tactic": "persistence",
+			"color": "#fc6b6b",
+			"comment": "",
+			"enabled": true,
+			"metadata": [],
+			"links": [],
+			"showSubtechniques": false
 		}
 	],
 	"gradient": {

@@ -211,8 +211,31 @@ Para consolidar la visibilidad de la progresión cronológica de la Kill Chain e
 Se adjuntan las evidencias gráficas extraídas del ATT&CK Navigator que documentan el degradado y la progresión secuencial de la Kill Chain en la infraestructura:
 
 <img src="evidencias/lab23-matriz-parte1.png" width="450">
-<p><em>Figura 1: Vista del Navigator reflejando las fases de Acceso Inicial, Ejecución y Persistencia en color rojo de alerta.</em></p>
+<p><em>Figura 2: Vista del Navigator reflejando las fases de Acceso Inicial, Ejecución y Persistencia en color rojo de alerta.</em></p>
 
 <img src="evidencias/lab23-matriz-parte2.png" width="450">
-<p><em>Figura 2: Registro de la extensión granular de las sub-técnicas de la columna de Descubrimiento de Información en la matriz.</em></p>
+<p><em>Figura 3: Registro de la extensión granular de las sub-técnicas de la columna de Descubrimiento de Información en la matriz.</em></p>
 
+## Parte 3: Exportar la Capa y Narrar la Cadena
+
+Se procedió con la descarga de las matrices de control de inteligencia y la descripción narrativa del ciclo de vida del compromiso de la Ferretería El Martillo.
+
+### 3.1 Exportar la Capa
+Los artefactos técnicos fueron guardados localmente para su integración en el ticket de incidente general:
+* Archivo de Configuración SIEM: `attack_layer_martillo.json`
+* Captura de Evidencia Gráfica: `evidencias/lab23-matriz-completa.png`
+
+### 3.2 Narrativa de la Cadena de Ataque
+
+El adversario inició el compromiso mediante tácticas de Credential Access, executing un ataque de fuerza bruta por adivinación automatizada de contraseñas (T1110.001) contra el usuario administrador. Tras vulnerar el perímetro de la red y consolidar el Initial Access abusando de cuentas válidas (T1078.003), el operador hostil activó la fase de Execution invocando procesos ofuscados dentro del intérprete de PowerShell (T1059.001) para evadir inspecciones estáticas. Posteriormente, el atacante desplegó técnicas de Discovery para la enumeración y descubrimiento de información del sistema y privilegios corporativos (T1082/T1033), culminando el incidente con el establecimiento de Persistence mediante la inyección no autorizada de una cuenta local backdoor (T1136.001) en la base de datos SAM del host afectado.
+
+### 3.3 Reflexión sobre la Cadena
+
+La táctica subsiguiente en la matriz Enterprise de MITRE que el atacante todavía no ejecutó pero podría implementar es Lateral Movement (Movimiento Lateral) o Collection (Recolección). Tras haber asegurado la persistencia local redundante con el usuario backdoor dentro de la estación de trabajo win10, el adversario buscará saltar hacia servidores colindantes mediante protocolos remotos o iniciar el acopio de archivos críticos de la base de datos de clientes para su posterior robo, constituyendo esta previsión la base de nuestra hipótesis activa de Threat Hunting para la sesión C24.
+
+#### 📸 ✅ Checkpoint Parte 3: Evidencia de la Capa Consolidada al 100%
+
+A continuación, se anexa la captura global extraída del Navigator donde se verifica la progresión secuencial de la intrusión por código de colores:
+
+<img src="evidencias/lab23-matriz-completa.png" width="600">
+<p><em>Figura 4: Vista panorámica completa de la matriz Enterprise en ATT&CK Navigator con las 5 sub-técnicas mapeadas y coloreadas por su respectiva táctica en el SOC.</em></p>
