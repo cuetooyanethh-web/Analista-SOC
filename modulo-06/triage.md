@@ -163,3 +163,56 @@ Las plataformas globales (AbuseIPDB, VirusTotal y Cisco Talos) reportaron veredi
 
 El analista del SOC resuelve esta discrepancia priorizando la telemetría interna de Wazuh e instalando un veredicto de alta confianza para mitigar falsos negativos, clasificando el hash original de Microsoft (`net1.exe`) como "Uso Hostil" debido a que fue abusado para reconocimiento local (*Living off the Land*).
 
+## Lab 23: Mapeo de la Cadena de Ataque en MITRE ATT&CK Navigator
+
+### Parte 1: Conocer la Matriz y las Técnicas Base
+
+Se clasificaron y normalizaron los vectores base del incidente de la Ferretería El Martillo dentro de la matriz Enterprise de MITRE ATT&CK:
+
+* **T1110.001 (Password Guessing):** Ubicada bajo la táctica de **Credential Access**. Respaldada forensemente por la ráfaga de intentos fallidos concurrentes en el Event ID 4625.
+* **T1136.001 (Local Account):** Ubicada bajo la táctica de **Persistence**. Respaldada por la inyección de la cuenta anómala en el Event ID 4720.
+
+#### 📸 ✅ Checkpoint Parte 1: Matriz Base del Navigator Consolidada
+<img src="evidencias/lab23-checkpoint1.png" width="450">
+<p><em>Figura 1: Evidencia del Checkpoint con las sub-técnicas T1110.001 y T1136.001 seleccionadas de forma granular y colorizadas en la matriz Enterprise.</em></p>
+
+## Parte 2: Mapear Técnicas Adicionales con Evidencia
+
+Se integró la telemetría recolectada del host win10 para estructurar de forma secuencial las TTPs complementarias en la matriz Enterprise, estableciendo un alto nivel de confianza analítica y aplicando la colorización diferencial en la capa del Navigator.
+
+### 2.2 Justificación de Técnicas Añadidas
+
+* Técnica: T1078.003 (Valid Accounts: Local Accounts)
+* Táctica: Initial Access
+* Evidencia en el incidente: Event ID 4624 (Logon Success). Se identificó una autenticación remota exitosa (Logon Type 10 - RDP) utilizando la credencial comprometida admin.ferre desde el origen hostil 203.0.113.5 inmediatamente posterior al cese de la ráfaga de fuerza bruta.
+* Confianza del mapeo: Alta
+
+* Técnica: T1059.001 (Command and Scripting Interpreter: PowerShell)
+* Táctica: Execution
+* Evidencia en el incidente: Event ID 4688 (Process Creation) / Alerta SIEM 67027. Se interceptó la invocación activa del binario powershell.exe procesando modificadores de evasión avanzados (-nop -w hidden -enc) para cargar cargas útiles cifradas directamente en la memoria del host.
+* Confianza del mapeo: Alta
+
+* Técnica: T1082 (System Information Discovery)
+* Táctica: Discovery
+* Evidencia en el incidente: Event ID 4688 (Process Creation) / Alerta SIEM 67027. Se auditó la ejecución sucesiva de los binarios utilitarios legítimos whoami.exe y systeminfo.exe, los cuales fueron abusados mediante tácticas de Living off the Land para perfilar la arquitectura del sistema operativo y enumerar los privilegios actuales de la sesión.
+* Confianza del mapeo: Alta
+
+### 2.3 Colorear por Táctica
+
+Para consolidar la visibilidad de la progresión cronológica de la Kill Chain en la capa del Navigator corporativo, se aplicó un código de degradado diferencial basado en la criticidad y avance de las fases operacionales:
+
+* Fase de Acceso Inicial (Initial Access): Colorizado en Rojo Oscuro (#bd1c1c), representando el traspaso perimetral exitoso de la subred.
+* Fase de Ejecución (Execution): Asignado en Amarillo Intenso (#fbf579), marcando la carga de comandos automatizados en memoria.
+* Fase de Persistencia (Persistence): Fijado en Naranja Técnico (#ff9f43), exponiendo el anclaje permanente en la base de datos SAM.
+* Fase de Descubrimiento (Discovery): Colorizado en Rojo Alerta (#fc3b3b), detallando las actividades activas de reconocimiento local.
+
+#### ✅ Checkpoint Parte 2: Matriz de Triage y Progresión de Colores Sincronizada al Repo
+
+Se adjuntan las evidencias gráficas extraídas del ATT&CK Navigator que documentan el degradado y la progresión secuencial de la Kill Chain en la infraestructura:
+
+<img src="evidencias/lab23-matriz-parte1.png" width="450">
+<p><em>Figura 1: Vista del Navigator reflejando las fases de Acceso Inicial, Ejecución y Persistencia en color rojo de alerta.</em></p>
+
+<img src="evidencias/lab23-matriz-parte2.png" width="450">
+<p><em>Figura 2: Registro de la extensión granular de las sub-técnicas de la columna de Descubrimiento de Información en la matriz.</em></p>
+
